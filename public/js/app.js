@@ -127,20 +127,7 @@
 
   function restoreHistoryState(state) {
     if (!state) return;
-    engine.currentFormat = state.format || '16:9';
-    engine.width = SceneEngine.FORMATS[engine.currentFormat].width;
-    engine.height = SceneEngine.FORMATS[engine.currentFormat].height;
-    engine.theme = state.theme || engine.theme;
-    engine.spec = state.spec;
-
-    // Restore layers
-    engine.layers.forEach(l => {
-      const match = state.layers.find(sl => sl.id === l.id);
-      if (match) {
-        Object.assign(l, match);
-      }
-    });
-
+    engine.restoreFromSnapshot(state);
     updateCanvas();
     editor.renderLayersList();
     editor.renderInspector();
@@ -542,8 +529,8 @@
       reader.onload = (evt) => {
         try {
           const projectData = JSON.parse(evt.target.result);
-          if (projectData.spec) {
-            engine.loadDesignSpec(projectData.spec);
+          if (projectData.layers || projectData.spec) {
+            engine.loadProject(projectData);
             projectTitleInput.value = projectData.title || 'Imported Project';
             updateCanvas();
             editor.renderLayersList();
@@ -637,12 +624,33 @@
           await StudioExport.exportJpeg(engine, `${baseName}.jpg`, 0.92, scale);
         } else if (fmt === 'svg') {
           await StudioExport.exportSvg(engine, `${baseName}.svg`, transparent);
-        } else if (fmt === 'json') {
           const projectData = {
             title: projectTitleInput.value.trim(),
             format: engine.currentFormat,
             spec: engine.spec,
-            theme: engine.theme
+            theme: engine.theme,
+            layers: engine.layers.map(l => ({
+              id: l.id,
+              name: l.name,
+              type: l.type,
+              visible: l.visible,
+              locked: l.locked,
+              x: l.x,
+              y: l.y,
+              scale: l.scale,
+              rotation: l.rotation,
+              text: l.text,
+              fontFamily: l.fontFamily,
+              fontSize: l.fontSize,
+              fontWeight: l.fontWeight,
+              color: l.color,
+              highlightWord: l.highlightWord,
+              highlightColor: l.highlightColor,
+              letterSpacing: l.letterSpacing,
+              metaphor: l.metaphor,
+              dataUrl: l.dataUrl,
+              opacity: l.opacity
+            }))
           };
           StudioExport.exportProjectJson(projectData, `${baseName}.json`);
         }
@@ -680,11 +688,10 @@
       card.addEventListener('click', async () => {
         const id = card.dataset.projId;
         const project = projects.find(p => p.id === id);
-        if (project && project.spec) {
+        if (project) {
           activeProjectId = project.id;
           projectTitleInput.value = project.title || 'Untitled Thumbnail';
-          engine.loadDesignSpec(project.spec);
-          if (project.format) engine.setFormat(project.format);
+          engine.loadProject(project);
           updateCanvas();
           editor.renderLayersList();
           editor.renderInspector();

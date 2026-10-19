@@ -1,6 +1,6 @@
-// AI SIMPLIFIED LAB - SCENE ENGINE
+// AI SIMPLIFIED LAB - SCENE ENGINE (V2 - Hardened & Resilient)
 // State manager and renderer for modular SVG thumbnail layers.
-// Supports multi-aspect ratio reflow, layer compositing, and safe areas.
+// Supports multi-aspect ratio reflow, full layer persistence, undo/redo inflation, and strict XML/HTML escaping.
 
 window.SceneEngine = (function() {
   'use strict';
@@ -11,6 +11,17 @@ window.SceneEngine = (function() {
     '9:16': { id: '9:16', name: 'YouTube Shorts', width: 1080, height: 1920 },
     '1:1': { id: '1:1', name: 'Square', width: 1080, height: 1080 }
   };
+
+  // Safe XML / SVG string escaping
+  function escapeXml(unsafe) {
+    if (unsafe == null) return '';
+    return String(unsafe)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
+  }
 
   class Engine {
     constructor() {
@@ -40,7 +51,73 @@ window.SceneEngine = (function() {
       this.reflowLayers();
     }
 
-    // Load a structured design spec and generate layers
+    // Attach standard render function based on layer type
+    attachRenderer(layer) {
+      if (layer.type === 'background') {
+        if (layer.id === 'bg-grid') {
+          layer.render = () => SceneLibrary.createGridFloor(this.width, this.height, this.theme);
+        } else {
+          layer.render = () => `
+            <rect x="0" y="0" width="${this.width}" height="${this.height}" fill="url(#grad-bg-ambient)" />
+            <rect x="0" y="0" width="${this.width}" height="${this.height}" fill="url(#pat-cyber-dots)" opacity="0.15" />
+          `;
+        }
+      } else if (layer.type === 'ambient') {
+        if (layer.id === 'bg-lasers') {
+          layer.render = () => SceneLibrary.createLaserBeams(this.width, this.height, this.theme);
+        } else if (layer.id === 'bg-particles') {
+          layer.render = () => SceneLibrary.createParticleField(this.width, this.height, this.theme, this.spec?.effects?.particleDensity || 45, this.spec?.seed || 1);
+        }
+      } else if (layer.type === 'graphic') {
+        layer.render = (l) => this.renderFocalMetaphor(l);
+      } else if (layer.type === 'badge') {
+        layer.render = (l) => {
+          const safeText = escapeXml((l.text || '').toUpperCase());
+          return `
+            <g transform="translate(${l.x || 0}, ${l.y || 0})">
+              <rect x="0" y="0" width="220" height="42" rx="8" fill="#0d0e17" stroke="${this.theme.accent2}" stroke-width="2.5" filter="url(#filter-glow-primary)" />
+              <polygon points="6,6 18,6 10,36 6,36" fill="${this.theme.accent2}" />
+              <text x="115" y="27" font-family="'JetBrains Mono', 'Anton', sans-serif" font-size="16" font-weight="900" fill="#ffffff" text-anchor="middle" letter-spacing="2">
+                ${safeText}
+              </text>
+            </g>
+          `;
+        };
+      } else if (layer.type === 'text') {
+        if (layer.id === 'layer-headline' || layer.name?.toLowerCase().includes('headline')) {
+          layer.render = (l) => this.renderHeadlineText(l);
+        } else {
+          layer.render = (l) => {
+            const safeText = escapeXml((l.text || '').toUpperCase());
+            return `
+              <g transform="translate(${l.x || 0}, ${l.y || 0})">
+                <text x="0" y="0" font-family="${escapeXml(l.fontFamily || 'Montserrat')}" font-size="${l.fontSize || 22}" font-weight="${l.fontWeight || 800}" fill="${l.color || this.theme.accent1}" letter-spacing="${l.letterSpacing || 2}" filter="url(#filter-text-shadow)">
+                  ${safeText}
+                </text>
+              </g>
+            `;
+          };
+        }
+      } else if (layer.type === 'branding') {
+        layer.render = (l) => {
+          const safeText = escapeXml(l.text || 'AI SIMPLIFIED LAB');
+          return `
+            <g transform="translate(${l.x || 0}, ${l.y || 0})">
+              <rect x="0" y="-22" width="180" height="28" rx="6" fill="#090f1d" stroke="#2a3d66" stroke-width="1.5" />
+              <circle cx="14" cy="-8" r="4" fill="${this.theme.accent1}" filter="url(#filter-glow-primary)" />
+              <text x="26" y="-3" font-family="'JetBrains Mono', monospace" font-size="12" font-weight="700" fill="#94a3b8" letter-spacing="1">
+                ${safeText}
+              </text>
+            </g>
+          `;
+        };
+      } else if (layer.type === 'overlay') {
+        layer.render = () => SceneLibrary.createVignette(this.width, this.height);
+      }
+      return layer;
+    }
+
+    // Load initial design spec (from Local generator or LLM)
     loadDesignSpec(spec) {
       this.spec = spec;
       if (spec.palette) {
@@ -48,59 +125,50 @@ window.SceneEngine = (function() {
       }
 
       this.layers = [];
-      const w = this.width;
-      const h = this.height;
 
       // 1. Background Base
-      this.addLayer({
+      this.addLayer(this.attachRenderer({
         id: 'bg-base',
         name: 'Background Base',
         type: 'background',
         visible: true,
-        locked: true,
-        render: () => `
-          <rect x="0" y="0" width="${w}" height="${h}" fill="url(#grad-bg-ambient)" />
-          <rect x="0" y="0" width="${w}" height="${h}" fill="url(#pat-cyber-dots)" opacity="0.15" />
-        `
-      });
+        locked: true
+      }));
 
       // 2. Background Grid Floor
       if (spec.effects?.gridFloor !== false) {
-        this.addLayer({
+        this.addLayer(this.attachRenderer({
           id: 'bg-grid',
           name: 'Cyber Grid Floor',
           type: 'background',
           visible: true,
-          locked: false,
-          render: () => SceneLibrary.createGridFloor(w, h, this.theme)
-        });
+          locked: false
+        }));
       }
 
-      // 3. Volumetric Lasers / Light Beams
+      // 3. Volumetric Lasers
       if (spec.effects?.laserBeams !== false) {
-        this.addLayer({
+        this.addLayer(this.attachRenderer({
           id: 'bg-lasers',
           name: 'Volumetric Lasers',
           type: 'ambient',
           visible: true,
-          locked: false,
-          render: () => SceneLibrary.createLaserBeams(w, h, this.theme)
-        });
+          locked: false
+        }));
       }
 
       // 4. Ambient Particle Dust
-      this.addLayer({
+      this.addLayer(this.attachRenderer({
         id: 'bg-particles',
         name: 'Particle Matrix',
         type: 'ambient',
         visible: true,
-        locked: false,
-        render: () => SceneLibrary.createParticleField(w, h, this.theme, spec.effects?.particleDensity || 45, spec.seed || 1)
-      });
+        locked: false
+      }));
 
       // 5. Focal Graphic Illustration Layer
       const focalPositions = this.calculateFocalPosition(spec.composition);
-      this.addLayer({
+      this.addLayer(this.attachRenderer({
         id: 'focal-graphic',
         name: `Focal: ${spec.focalMetaphor || 'Central Tech'}`,
         type: 'graphic',
@@ -110,13 +178,12 @@ window.SceneEngine = (function() {
         y: focalPositions.y,
         scale: focalPositions.scale,
         rotation: 0,
-        metaphor: spec.focalMetaphor,
-        render: (layer) => this.renderFocalMetaphor(layer)
-      });
+        metaphor: spec.focalMetaphor
+      }));
 
       // 6. Top Alert Badge / Kicker
       const badgePos = this.calculateBadgePosition(spec.composition);
-      this.addLayer({
+      this.addLayer(this.attachRenderer({
         id: 'layer-badge',
         name: 'Alert Badge',
         type: 'badge',
@@ -124,21 +191,12 @@ window.SceneEngine = (function() {
         locked: false,
         x: badgePos.x,
         y: badgePos.y,
-        text: spec.badge || 'CRITICAL UPDATE',
-        render: (layer) => `
-          <g transform="translate(${layer.x}, ${layer.y})">
-            <rect x="0" y="0" width="220" height="42" rx="8" fill="#0d0e17" stroke="${this.theme.accent2}" stroke-width="2.5" filter="url(#filter-glow-primary)" />
-            <polygon points="6,6 18,6 10,36 6,36" fill="${this.theme.accent2}" />
-            <text x="115" y="27" font-family="'JetBrains Mono', 'Anton', sans-serif" font-size="16" font-weight="900" fill="#ffffff" text-anchor="middle" letter-spacing="2">
-              ${(layer.text || '').toUpperCase()}
-            </text>
-          </g>
-        `
-      });
+        text: spec.badge || 'CRITICAL UPDATE'
+      }));
 
       // 7. Headline Text Layer
       const headlinePos = this.calculateHeadlinePosition(spec.composition);
-      this.addLayer({
+      this.addLayer(this.attachRenderer({
         id: 'layer-headline',
         name: 'Headline',
         type: 'text',
@@ -155,13 +213,12 @@ window.SceneEngine = (function() {
         highlightColor: this.theme.accent2 || '#ff2a5f',
         strokeColor: '#000000',
         strokeWidth: 4,
-        letterSpacing: 2,
-        render: (layer) => this.renderHeadlineText(layer)
-      });
+        letterSpacing: 2
+      }));
 
       // 8. Subtitle Text Layer
       const subPos = this.calculateSubtitlePosition(spec.composition, headlinePos);
-      this.addLayer({
+      this.addLayer(this.attachRenderer({
         id: 'layer-subtitle',
         name: 'Subtitle',
         type: 'text',
@@ -174,48 +231,68 @@ window.SceneEngine = (function() {
         fontSize: subPos.fontSize,
         fontWeight: '800',
         color: this.theme.accent1 || '#00f2fe',
-        letterSpacing: 3,
-        render: (layer) => `
-          <g transform="translate(${layer.x}, ${layer.y})">
-            <text x="0" y="0" font-family="${layer.fontFamily}" font-size="${layer.fontSize}" font-weight="${layer.fontWeight}" fill="${layer.color}" letter-spacing="${layer.letterSpacing}" filter="url(#filter-text-shadow)">
-              ${layer.text.toUpperCase()}
-            </text>
-          </g>
-        `
-      });
+        letterSpacing: 3
+      }));
 
       // 9. Channel Signature Branding Pill
-      this.addLayer({
+      this.addLayer(this.attachRenderer({
         id: 'layer-branding',
         name: 'Studio Stamp',
         type: 'branding',
         visible: true,
         locked: false,
         x: 60,
-        y: h - 50,
-        text: 'AI SIMPLIFIED LAB',
-        render: (layer) => `
-          <g transform="translate(${layer.x}, ${layer.y})">
-            <rect x="0" y="-22" width="180" height="28" rx="6" fill="#090f1d" stroke="#2a3d66" stroke-width="1.5" />
-            <circle cx="14" cy="-8" r="4" fill="${this.theme.accent1}" filter="url(#filter-glow-primary)" />
-            <text x="26" y="-3" font-family="'JetBrains Mono', monospace" font-size="12" font-weight="700" fill="#94a3b8" letter-spacing="1">
-              ${layer.text}
-            </text>
-          </g>
-        `
-      });
+        y: this.height - 50,
+        text: 'AI SIMPLIFIED LAB'
+      }));
 
       // 10. Cinematic Vignette Overlay
-      this.addLayer({
+      this.addLayer(this.attachRenderer({
         id: 'vignette-overlay',
         name: 'Cinematic Vignette',
         type: 'overlay',
         visible: true,
-        locked: true,
-        render: () => SceneLibrary.createVignette(w, h)
-      });
+        locked: true
+      }));
 
       this.selectedLayerId = 'layer-headline';
+    }
+
+    // Full Project Restoration (Fixes Issue 1: preserves ALL customized layers & positions)
+    loadProject(projectData) {
+      if (!projectData) return;
+      this.spec = projectData.spec || this.spec;
+      if (projectData.theme) this.theme = { ...this.theme, ...projectData.theme };
+      if (projectData.format) {
+        this.currentFormat = projectData.format;
+        this.width = FORMATS[this.currentFormat]?.width || 1280;
+        this.height = FORMATS[this.currentFormat]?.height || 720;
+      }
+
+      if (Array.isArray(projectData.layers) && projectData.layers.length > 0) {
+        this.layers = projectData.layers.map(savedLayer => {
+          const l = { ...savedLayer };
+          return this.attachRenderer(l);
+        });
+      } else {
+        this.loadDesignSpec(this.spec);
+      }
+
+      this.selectedLayerId = this.layers.find(l => l.type === 'text')?.id || this.layers[0]?.id || null;
+    }
+
+    // Complete State Restoration for Undo/Redo (Fixes Issue 3: restores additions & deletions)
+    restoreFromSnapshot(snapshot) {
+      if (!snapshot) return;
+      this.currentFormat = snapshot.format || '16:9';
+      this.width = FORMATS[this.currentFormat]?.width || 1280;
+      this.height = FORMATS[this.currentFormat]?.height || 720;
+      this.theme = snapshot.theme ? { ...snapshot.theme } : this.theme;
+      this.spec = snapshot.spec ? { ...snapshot.spec } : this.spec;
+
+      if (Array.isArray(snapshot.layers)) {
+        this.layers = snapshot.layers.map(l => this.attachRenderer({ ...l }));
+      }
     }
 
     addLayer(layer) {
@@ -243,7 +320,7 @@ window.SceneEngine = (function() {
       this.layers[targetIdx] = temp;
     }
 
-    // Reflow layer coordinates when changing aspect ratios (16:9 -> 9:16 -> 1:1)
+    // Reflow layer coordinates when changing aspect ratios (Fixes Issue 2: responsive reflow)
     reflowLayers() {
       const isVertical = this.currentFormat === '9:16';
       const isSquare = this.currentFormat === '1:1';
@@ -253,17 +330,16 @@ window.SceneEngine = (function() {
       const focalLayer = this.getLayer('focal-graphic');
       if (focalLayer) {
         if (isVertical) {
-          focalLayer.x = w * 0.5;
-          focalLayer.y = h * 0.62;
+          focalLayer.x = Math.round(w * 0.5);
+          focalLayer.y = Math.round(h * 0.62);
           focalLayer.scale = 1.35;
         } else if (isSquare) {
-          focalLayer.x = w * 0.5;
-          focalLayer.y = h * 0.6;
+          focalLayer.x = Math.round(w * 0.5);
+          focalLayer.y = Math.round(h * 0.6);
           focalLayer.scale = 1.15;
         } else {
-          // 16:9 Landscape
-          focalLayer.x = w * 0.72;
-          focalLayer.y = h * 0.5;
+          focalLayer.x = Math.round(w * 0.72);
+          focalLayer.y = Math.round(h * 0.5);
           focalLayer.scale = 1.0;
         }
       }
@@ -323,29 +399,27 @@ window.SceneEngine = (function() {
       }
     }
 
-    // Positions for 16:9 initial layout
     calculateFocalPosition(composition) {
       const w = this.width;
       const h = this.height;
 
       if (this.currentFormat === '9:16') {
-        return { x: w * 0.5, y: h * 0.62, scale: 1.35 };
+        return { x: Math.round(w * 0.5), y: Math.round(h * 0.62), scale: 1.35 };
       }
       if (this.currentFormat === '1:1') {
-        return { x: w * 0.5, y: h * 0.6, scale: 1.15 };
+        return { x: Math.round(w * 0.5), y: Math.round(h * 0.6), scale: 1.15 };
       }
 
-      // 16:9
       switch (composition) {
         case 'split-duel':
-          return { x: w * 0.75, y: h * 0.5, scale: 1.1 };
+          return { x: Math.round(w * 0.75), y: Math.round(h * 0.5), scale: 1.1 };
         case 'isometric-stage':
-          return { x: w * 0.72, y: h * 0.54, scale: 1.05 };
+          return { x: Math.round(w * 0.72), y: Math.round(h * 0.54), scale: 1.05 };
         case 'shatter-burst':
-          return { x: w * 0.68, y: h * 0.48, scale: 1.15 };
+          return { x: Math.round(w * 0.68), y: Math.round(h * 0.48), scale: 1.15 };
         case 'focal-right':
         default:
-          return { x: w * 0.73, y: h * 0.5, scale: 1.0 };
+          return { x: Math.round(w * 0.73), y: Math.round(h * 0.5), scale: 1.0 };
       }
     }
 
@@ -364,7 +438,7 @@ window.SceneEngine = (function() {
     renderFocalMetaphor(layer) {
       const scale = layer.scale || 1.0;
       const rot = layer.rotation || 0;
-      const transform = `transform="translate(${layer.x}, ${layer.y}) rotate(${rot})"`;
+      const transform = `transform="translate(${layer.x || 0}, ${layer.y || 0}) rotate(${rot})"`;
 
       let innerSvg = '';
       switch (layer.metaphor) {
@@ -398,17 +472,16 @@ window.SceneEngine = (function() {
           break;
       }
 
-      return `<g id="group-${layer.id}" ${transform}>${innerSvg}</g>`;
+      return `<g id="group-${escapeXml(layer.id)}" ${transform}>${innerSvg}</g>`;
     }
 
-    // High impact YouTube headline renderer with word-level neon accent highlighting
+    // High impact YouTube headline renderer with strict XML escaping (Fixes Issue 4)
     renderHeadlineText(layer) {
-      const words = (layer.text || '').split(/\s+/);
+      const words = (layer.text || '').trim().split(/\s+/);
       const hlWord = (layer.highlightWord || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
       const fontSize = layer.fontSize || 88;
       const lineHeight = fontSize * 1.06;
 
-      // Wrap headline into 1 to 3 compact lines
       const lines = [];
       if (words.length <= 2) {
         lines.push(words.join(' '));
@@ -421,34 +494,33 @@ window.SceneEngine = (function() {
         lines.push(words.slice(mid).join(' '));
       }
 
-      let lineTspans = lines.map((lineText, lineIdx) => {
+      const lineTspans = lines.map((lineText, lineIdx) => {
         const lineWords = lineText.split(/\s+/);
         const spans = lineWords.map(w => {
           const clean = w.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
           const isHighlight = hlWord && clean === hlWord;
           const fillColor = isHighlight ? (layer.highlightColor || this.theme.accent2) : (layer.color || '#ffffff');
           const filter = isHighlight ? 'filter="url(#filter-glow-primary)"' : '';
-          return `<tspan fill="${fillColor}" ${filter}>${w} </tspan>`;
+          return `<tspan fill="${fillColor}" ${filter}>${escapeXml(w)} </tspan>`;
         }).join('');
 
         return `<tspan x="0" dy="${lineIdx === 0 ? 0 : lineHeight}">${spans}</tspan>`;
       }).join('');
 
       return `
-        <g transform="translate(${layer.x}, ${layer.y})" filter="url(#filter-text-shadow)">
-          <!-- Outer Dark Stroke/Shadow for Uncompromising Contrast -->
-          <text x="0" y="0" font-family="${layer.fontFamily}" font-size="${fontSize}" font-weight="${layer.fontWeight}" letter-spacing="${layer.letterSpacing || 2}" stroke="#000000" stroke-width="12" stroke-linejoin="round" fill="none">
-            ${lines.map((l, i) => `<tspan x="0" dy="${i === 0 ? 0 : lineHeight}">${l} </tspan>`).join('')}
+        <g transform="translate(${layer.x || 0}, ${layer.y || 0})" filter="url(#filter-text-shadow)">
+          <!-- Outer Dark Outline for High-CTR Legibility -->
+          <text x="0" y="0" font-family="${escapeXml(layer.fontFamily || 'Anton')}" font-size="${fontSize}" font-weight="${layer.fontWeight || 900}" letter-spacing="${layer.letterSpacing || 2}" stroke="#000000" stroke-width="12" stroke-linejoin="round" fill="none">
+            ${lines.map((l, i) => `<tspan x="0" dy="${i === 0 ? 0 : lineHeight}">${escapeXml(l)} </tspan>`).join('')}
           </text>
-          <!-- Front Text with Word Highlights -->
-          <text x="0" y="0" font-family="${layer.fontFamily}" font-size="${fontSize}" font-weight="${layer.fontWeight}" letter-spacing="${layer.letterSpacing || 2}">
+          <!-- Front Text with Highlights -->
+          <text x="0" y="0" font-family="${escapeXml(layer.fontFamily || 'Anton')}" font-size="${fontSize}" font-weight="${layer.fontWeight || 900}" letter-spacing="${layer.letterSpacing || 2}">
             ${lineTspans}
           </text>
         </g>
       `;
     }
 
-    // Render YouTube Safe Area Guides
     renderSafeGuides() {
       if (!this.showSafeGuides) return '';
       const w = this.width;
@@ -457,19 +529,16 @@ window.SceneEngine = (function() {
       if (this.currentFormat === '16:9') {
         return `
           <g id="safe-guides" pointer-events="none">
-            <!-- YouTube Timestamp / Duration Badge at Bottom-Right (180px x 48px) -->
+            <!-- YouTube Timestamp Badge Safe Zone (bottom-right 180x48) -->
             <rect x="${w - 180}" y="${h - 48}" width="180" height="48" fill="#ff0000" fill-opacity="0.35" stroke="#ff0000" stroke-width="2" stroke-dasharray="4 4" />
             <text x="${w - 90}" y="${h - 20}" font-family="'JetBrains Mono', monospace" font-size="12" font-weight="900" fill="#ffffff" text-anchor="middle">YT TIMESTAMP SAFE</text>
-            
             <!-- YouTube Watch Later / Card overlay at Top-Right -->
             <rect x="${w - 80}" y="12" width="68" height="68" fill="#ffaa00" fill-opacity="0.25" stroke="#ffaa00" stroke-width="1.5" stroke-dasharray="4 4" />
-            
             <!-- Outer Safe Margins (5% margin) -->
             <rect x="${w * 0.05}" y="${h * 0.05}" width="${w * 0.9}" height="${h * 0.9}" fill="none" stroke="#00f2fe" stroke-width="1" stroke-dasharray="8 8" opacity="0.4" />
           </g>
         `;
       } else if (this.currentFormat === '9:16') {
-        // Shorts Safe Area
         return `
           <g id="safe-guides" pointer-events="none">
             <!-- Shorts Right Sidebar Icons (Like, Comment, Share) -->
@@ -483,7 +552,6 @@ window.SceneEngine = (function() {
       return '';
     }
 
-    // Render interactive selection bounding box
     renderSelectionBox() {
       if (!this.selectedLayerId) return '';
       const layer = this.getLayer(this.selectedLayerId);
@@ -499,22 +567,21 @@ window.SceneEngine = (function() {
       `;
     }
 
-    // Complete SVG string generator
     generateSvgString(options = {}) {
       const transparentBg = options.transparentBg || false;
       const w = this.width;
       const h = this.height;
 
-      let defs = SceneLibrary.getSvgDefs(this.theme);
+      const defs = SceneLibrary.getSvgDefs(this.theme);
 
-      let layersSvg = this.layers
+      const layersSvg = this.layers
         .filter(layer => layer.visible)
         .filter(layer => !(transparentBg && (layer.type === 'background' || layer.type === 'overlay')))
         .map(layer => {
           if (layer.type === 'user-image') {
             return `
-              <g transform="translate(${layer.x}, ${layer.y}) rotate(${layer.rotation || 0}) scale(${layer.scale || 1})" opacity="${layer.opacity ?? 1}">
-                <image href="${layer.dataUrl}" width="${layer.width || 300}" height="${layer.height || 300}" />
+              <g transform="translate(${layer.x || 0}, ${layer.y || 0}) rotate(${layer.rotation || 0}) scale(${layer.scale || 1})" opacity="${layer.opacity ?? 1}">
+                <image href="${escapeXml(layer.dataUrl)}" width="${layer.width || 300}" height="${layer.height || 300}" />
               </g>
             `;
           }
@@ -540,6 +607,7 @@ window.SceneEngine = (function() {
 
   return {
     Engine,
-    FORMATS
+    FORMATS,
+    escapeXml
   };
 })();

@@ -195,11 +195,16 @@ window.LayerEditor = (function() {
         return;
       }
 
+      function esc(unsafe) {
+        if (unsafe == null) return '';
+        return String(unsafe).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      }
+
       let content = `
         <div class="inspector-section">
           <div class="section-header">
-            <h4>${layer.name}</h4>
-            <span class="badge-type">${layer.type.toUpperCase()}</span>
+            <h4>${esc(layer.name)}</h4>
+            <span class="badge-type">${esc(layer.type.toUpperCase())}</span>
           </div>
 
           <!-- Position Coordinates -->
@@ -221,7 +226,7 @@ window.LayerEditor = (function() {
         content += `
           <div class="inspector-section">
             <label class="control-label">Text Content</label>
-            <textarea id="prop-text-val" rows="2" class="studio-input">${layer.text || ''}</textarea>
+            <textarea id="prop-text-val" rows="2" class="studio-input">${esc(layer.text || '')}</textarea>
 
             <label class="control-label">Font Family</label>
             <select id="prop-font-family" class="studio-select">
@@ -244,18 +249,18 @@ window.LayerEditor = (function() {
             <div class="input-row">
               <div class="input-field">
                 <label>Primary Color</label>
-                <input type="color" id="prop-text-color" value="${layer.color || '#ffffff'}">
+                <input type="color" id="prop-text-color" value="${esc(layer.color || '#ffffff')}">
               </div>
               <div class="input-field">
                 <label>Highlight Word</label>
-                <input type="text" id="prop-highlight-word" value="${layer.highlightWord || ''}" placeholder="e.g. ESCAPED">
+                <input type="text" id="prop-highlight-word" value="${esc(layer.highlightWord || '')}" placeholder="e.g. ESCAPED">
               </div>
             </div>
 
             <div class="input-row">
               <div class="input-field">
                 <label>Highlight Color</label>
-                <input type="color" id="prop-highlight-color" value="${layer.highlightColor || this.engine.theme.accent2}">
+                <input type="color" id="prop-highlight-color" value="${esc(layer.highlightColor || this.engine.theme.accent2)}">
               </div>
               <div class="input-field">
                 <label>Letter Spacing</label>
@@ -318,10 +323,10 @@ window.LayerEditor = (function() {
         content += `
           <div class="inspector-section">
             <label class="control-label">Badge Text</label>
-            <input type="text" id="prop-badge-text" class="studio-input" value="${layer.text || ''}">
+            <input type="text" id="prop-badge-text" class="studio-input" value="${esc(layer.text || '')}">
             <div class="input-field" style="margin-top: 10px;">
               <label>Accent Border Color</label>
-              <input type="color" id="prop-theme-accent2" value="${this.engine.theme.accent2}">
+              <input type="color" id="prop-theme-accent2" value="${esc(this.engine.theme.accent2)}">
             </div>
           </div>
         `;
@@ -510,6 +515,7 @@ window.LayerEditor = (function() {
 
       const itemsHtml = [...this.engine.layers].reverse().map((layer) => {
         const isSelected = layer.id === this.engine.selectedLayerId;
+        const escName = String(layer.name || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         return `
           <div class="layer-item ${isSelected ? 'selected' : ''}" data-layer-id="${layer.id}">
             <button class="layer-btn-vis" title="${layer.visible ? 'Hide' : 'Show'}" data-action="toggle-vis">
@@ -520,7 +526,7 @@ window.LayerEditor = (function() {
                 }
               </svg>
             </button>
-            <span class="layer-title">${layer.name}</span>
+            <span class="layer-title">${escName}</span>
             <div class="layer-actions">
               <button class="layer-btn" title="Move Up" data-action="move-up">▲</button>
               <button class="layer-btn" title="Move Down" data-action="move-down">▼</button>
