@@ -89,25 +89,27 @@ python -m http.server -d public 3000
 
 ---
 
-## 🌐 Free Deployment on Cloudflare Pages
+## 🌐 Free Hosting Options
 
-### Deploying via Git (Recommended)
-1. Push this repository to GitHub:
-   ```bash
-   git init
-   git add .
-   git commit -m "feat: AI Simplified Lab Thumbnail Studio"
-   git remote add origin https://github.com/aisimplified280-png/Thumnail-generator.git
-   git branch -M main
-   git push -u origin main
-   ```
-2. In your [Cloudflare Dashboard](https://dash.cloudflare.com/):
-   - Go to **Workers & Pages** > **Create application** > **Pages** > **Connect to Git**.
-   - Select the `Thumnail-generator` repository.
-   - Set **Build output directory** to: `public`
-   - Set **Build command**: *(leave empty)*
-   - Click **Save and Deploy**.
-3. Your studio will be live instantly on a free `*.pages.dev` domain with unlimited bandwidth!
+### Option 1: GitHub Pages (Directly from this Repository)
+Because your repository is already hosted on GitHub, you can host the studio for free without signing up for any other service:
+
+1. Go to your repository on GitHub: **[aisimplified280-png/Thumnail-generator](https://github.com/aisimplified280-png/Thumnail-generator)**
+2. Click **Settings** (tab at the top).
+3. In the left navigation menu, click **Pages** (under "Code and automation").
+4. Under **Build and deployment** > **Source**, select:
+   👉 **GitHub Actions**
+5. That's it! The included `.github/workflows/deploy.yml` workflow will automatically deploy the studio to:
+   `https://aisimplified280-png.github.io/Thumnail-generator/`
+6. Any time you push changes to `main`, GitHub Pages updates automatically.
+
+---
+
+### Option 2: Cloudflare Pages
+1. In your [Cloudflare Dashboard](https://dash.cloudflare.com/), go to **Workers & Pages** > **Create application** > **Pages** > **Connect to Git**.
+2. Select the `Thumnail-generator` repository.
+3. Set **Build output directory** to: `public` (leave build command empty).
+4. Click **Save and Deploy**.
 
 ### (Optional) Configuring Server-Side AI Secrets
 If you want to use Cloudflare Pages Function `/api/design` without entering keys into client browsers:
