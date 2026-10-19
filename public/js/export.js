@@ -16,23 +16,42 @@ window.StudioExport = (function() {
       const ctx = canvas.getContext('2d');
 
       const img = new Image();
-      const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-      const url = URL.createObjectURL(svgBlob);
+      // Data URI is much more reliable across browsers than Blob URLs for SVG canvas drawing
+      const dataUri = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgString);
 
       img.onload = () => {
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
-        URL.revokeObjectURL(url);
-        resolve(canvas);
+        try {
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+          resolve(canvas);
+        } catch (e) {
+          reject(e);
+        }
       };
 
-      img.onerror = (err) => {
-        URL.revokeObjectURL(url);
-        reject(new Error('Failed to rasterize SVG to canvas: ' + err));
+      img.onerror = () => {
+        // Fallback to Blob URL if data URI fails
+        try {
+          const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+          const blobUrl = URL.createObjectURL(svgBlob);
+          const fallbackImg = new Image();
+          fallbackImg.onload = () => {
+            ctx.drawImage(fallbackImg, 0, 0, targetWidth, targetHeight);
+            URL.revokeObjectURL(blobUrl);
+            resolve(canvas);
+          };
+          fallbackImg.onerror = (err) => {
+            URL.revokeObjectURL(blobUrl);
+            reject(new Error('Failed to rasterize SVG to canvas: ' + err));
+          };
+          fallbackImg.src = blobUrl;
+        } catch (err) {
+          reject(err);
+        }
       };
 
-      img.src = url;
+      img.src = dataUri;
     });
   }
 

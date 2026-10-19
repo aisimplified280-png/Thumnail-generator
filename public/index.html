@@ -229,7 +229,12 @@
         <div id="settings-groq-group" style="display: none; margin-top: 14px;">
           <label class="control-label">Groq API Key</label>
           <input type="password" id="setting-groq-key" class="studio-input" placeholder="gsk_...">
-          <p style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">Stored strictly in your local browser storage. Never sent to any external tracking or server.</p>
+          <label class="control-label" style="margin-top: 8px;">Groq Model</label>
+          <select id="setting-groq-model" class="studio-select">
+            <option value="llama-3.1-8b-instant">llama-3.1-8b-instant (Recommended — Fastest, Universal Free Tier)</option>
+            <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile (Llama 3.3 70B)</option>
+          </select>
+          <p style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">Get your free API key at <a href="https://console.groq.com/keys" target="_blank" style="color: var(--accent-cyan); text-decoration: underline;">console.groq.com/keys</a>. Stored strictly in your browser.</p>
         </div>
 
         <div id="settings-gemini-group" style="display: none; margin-top: 14px;">

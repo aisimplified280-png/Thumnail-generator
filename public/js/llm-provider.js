@@ -116,7 +116,8 @@ window.LLMProvider = (function() {
 
     // Mode B: Direct Groq Client-side Key
     if (config.mode === 'groq') {
-      if (!config.groqApiKey) {
+      const apiKey = (config.groqApiKey || '').trim();
+      if (!apiKey) {
         return {
           spec: PromptInterpreter.interpret(prompt, remixSeed),
           source: 'local-fallback',
@@ -124,40 +125,68 @@ window.LLMProvider = (function() {
         };
       }
 
-      try {
-        const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${config.groqApiKey}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            model: 'llama-3.3-70b-versatile',
-            messages: [
-              {
-                role: 'system',
-                content: `You are a YouTube thumbnail designer for 'AI Simplified Lab'. Output valid JSON only with properties: category (cybersecurity|ai-agent|programming|news|productivity|science|creative), composition (focal-right|split-duel|isometric-stage|shatter-burst|cinematic-hud), headline (short, uppercase, max 5 words), headlineHighlight, subtitle, badge, focalSubject (vault|shield|neural-core|terminal|workflow|quantum|prism|disruption|hf-breach), palette {bgDark, bgMid, accent1, accent2}, effects {gridFloor, laserBeams, particleDensity}.`
-              },
-              { role: 'user', content: `Design thumbnail: ${prompt}` }
-            ],
-            response_format: { type: 'json_object' },
-            temperature: 0.6
-          })
-        });
+      const modelsToTry = [
+        config.groqModel || 'llama-3.1-8b-instant',
+        'llama-3.3-70b-versatile',
+        'llama-3.1-8b-instant'
+      ];
 
-        if (!resp.ok) throw new Error(`Groq returned ${resp.status}`);
-        const data = await resp.json();
-        const content = JSON.parse(data.choices?.[0]?.message?.content || '{}');
-        const validated = validateAndSanitizeSpec(content, prompt);
-        return { spec: validated, source: 'groq' };
-      } catch (err) {
-        console.warn('Groq direct call failed, falling back to Local Interpreter:', err);
-        return {
-          spec: PromptInterpreter.interpret(prompt, remixSeed),
-          source: 'local-fallback',
-          error: err.message
-        };
+      // Deduplicate
+      const uniqueModels = [...new Set(modelsToTry)];
+      let lastError = null;
+
+      for (const modelName of uniqueModels) {
+        try {
+          const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              model: modelName,
+              messages: [
+                {
+                  role: 'system',
+                  content: `You are a YouTube thumbnail designer for 'AI Simplified Lab'. Output valid JSON only with properties: category (cybersecurity|ai-agent|programming|news|productivity|science|creative), composition (focal-right|split-duel|isometric-stage|shatter-burst|cinematic-hud), headline (short, uppercase, max 5 words), headlineHighlight, subtitle, badge, focalSubject (vault|shield|neural-core|terminal|workflow|quantum|prism|disruption|hf-breach), palette {bgDark, bgMid, accent1, accent2}, effects {gridFloor, laserBeams, particleDensity}.`
+                },
+                { role: 'user', content: `Design thumbnail: ${prompt}` }
+              ],
+              response_format: { type: 'json_object' },
+              temperature: 0.6
+            })
+          });
+
+          if (!resp.ok) {
+            const errJson = await resp.json().catch(() => null);
+            const errMsg = errJson?.error?.message || `Groq returned HTTP ${resp.status}`;
+            lastError = new Error(errMsg);
+            // If model not found (404), try next model
+            if (resp.status === 404) {
+              console.warn(`Groq model ${modelName} returned 404, attempting fallback...`);
+              continue;
+            }
+            throw lastError;
+          }
+
+          const data = await resp.json();
+          const content = JSON.parse(data.choices?.[0]?.message?.content || '{}');
+          const validated = validateAndSanitizeSpec(content, prompt);
+          return { spec: validated, source: `groq (${modelName})` };
+        } catch (err) {
+          lastError = err;
+          if (!err.message?.includes('404')) {
+            break;
+          }
+        }
       }
+
+      console.warn('Groq call failed, falling back to Local Interpreter:', lastError);
+      return {
+        spec: PromptInterpreter.interpret(prompt, remixSeed),
+        source: 'local-fallback',
+        error: lastError ? lastError.message : 'Groq request failed'
+      };
     }
 
     // Mode B: Direct Gemini Client-side Key

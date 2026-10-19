@@ -555,10 +555,13 @@
     const groqKeyInput = document.getElementById('setting-groq-key');
     const geminiKeyInput = document.getElementById('setting-gemini-key');
 
+    const groqModelSelect = document.getElementById('setting-groq-model');
+
     document.getElementById('btn-open-settings').addEventListener('click', () => {
       const cfg = LLMProvider.getConfig();
       selectProvider.value = cfg.mode || 'local';
       groqKeyInput.value = cfg.groqApiKey || '';
+      if (groqModelSelect) groqModelSelect.value = cfg.groqModel || 'llama-3.1-8b-instant';
       geminiKeyInput.value = cfg.geminiApiKey || '';
       updateSettingsVisibility();
       modalSettings.classList.add('open');
@@ -580,6 +583,7 @@
       LLMProvider.saveConfig({
         mode: selectProvider.value,
         groqApiKey: groqKeyInput.value.trim(),
+        groqModel: groqModelSelect ? groqModelSelect.value : 'llama-3.1-8b-instant',
         geminiApiKey: geminiKeyInput.value.trim()
       });
       updateGenModeBadge();
