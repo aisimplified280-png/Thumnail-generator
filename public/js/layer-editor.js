@@ -31,7 +31,9 @@ window.LayerEditor = (function() {
       const container = document.getElementById('canvas-container');
       if (!container) return;
 
-      container.addEventListener('mousedown', (e) => {
+      container.style.touchAction = 'none';
+
+      container.addEventListener('pointerdown', (e) => {
         const svg = document.getElementById('thumbnail-canvas-svg');
         if (!svg) return;
 
@@ -47,6 +49,9 @@ window.LayerEditor = (function() {
           this.renderInspector();
           this.renderLayersList();
           this.onUpdate({ type: 'select', layer: hitLayer });
+          try {
+            if (container.setPointerCapture) container.setPointerCapture(e.pointerId);
+          } catch (err) {}
         } else if (!hitLayer) {
           // Clicked empty background
           this.engine.selectedLayerId = null;
@@ -56,7 +61,7 @@ window.LayerEditor = (function() {
         }
       });
 
-      window.addEventListener('mousemove', (e) => {
+      const onPointerMove = (e) => {
         if (!this.isDragging || !this.dragLayer) return;
         const svg = document.getElementById('thumbnail-canvas-svg');
         if (!svg) return;
@@ -70,15 +75,22 @@ window.LayerEditor = (function() {
 
         this.updateCanvasDirectly();
         this.updateInspectorPositionInputs();
-      });
+      };
 
-      window.addEventListener('mouseup', () => {
+      const onPointerUp = (e) => {
         if (this.isDragging) {
           this.isDragging = false;
           this.dragLayer = null;
+          if (e && container.hasPointerCapture && container.hasPointerCapture(e.pointerId)) {
+            try { container.releasePointerCapture(e.pointerId); } catch (err) {}
+          }
           this.onUpdate({ type: 'drag-end' });
         }
-      });
+      };
+
+      window.addEventListener('pointermove', onPointerMove);
+      window.addEventListener('pointerup', onPointerUp);
+      window.addEventListener('pointercancel', onPointerUp);
     }
 
     initKeyboardEvents() {

@@ -5,18 +5,19 @@
 window.LLMProvider = (function() {
   'use strict';
 
-  const STORAGE_KEY_CONFIG = 'studio_llm_config';
+  const STORAGE_KEY_CONFIG = 'as_thumb_llm_config';
 
   function getConfig() {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY_CONFIG);
+      const stored = localStorage.getItem(STORAGE_KEY_CONFIG) || localStorage.getItem('studio_llm_config');
       return stored ? JSON.parse(stored) : {
-        mode: 'local', // 'local' | 'pages-api' | 'groq' | 'gemini'
+        mode: 'local', // 'local' | 'groq' | 'gemini'
         groqApiKey: '',
+        groqModel: 'openai/gpt-oss-20b',
         geminiApiKey: ''
       };
     } catch (e) {
-      return { mode: 'local', groqApiKey: '', geminiApiKey: '' };
+      return { mode: 'local', groqApiKey: '', groqModel: 'openai/gpt-oss-20b', geminiApiKey: '' };
     }
   }
 
@@ -89,29 +90,13 @@ window.LLMProvider = (function() {
       };
     }
 
-    // Mode B: Serverless Cloudflare Pages Function (/api/design)
+    // Cloudflare Pages Function (Unavailable on GitHub Pages static deployment)
     if (config.mode === 'pages-api') {
-      try {
-        const resp = await fetch('/api/design', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt })
-        });
-        if (!resp.ok) {
-          const errData = await resp.json().catch(() => ({}));
-          throw new Error(errData.error || `Server returned ${resp.status}`);
-        }
-        const data = await resp.json();
-        const validated = validateAndSanitizeSpec(data.design, prompt);
-        return { spec: validated, source: 'pages-api' };
-      } catch (err) {
-        console.warn('Pages /api/design failed, falling back to Local Interpreter:', err.message);
-        return {
-          spec: PromptInterpreter.interpret(prompt, remixSeed),
-          source: 'local-fallback',
-          error: err.message
-        };
-      }
+      return {
+        spec: PromptInterpreter.interpret(prompt, remixSeed),
+        source: 'local-fallback',
+        error: 'Pages Function is not available on GitHub Pages static hosting. Used Local Engine.'
+      };
     }
 
     // Mode B: Direct Groq Client-side Key
@@ -125,17 +110,16 @@ window.LLMProvider = (function() {
         };
       }
 
+      // Valid active Groq models (verified supported)
+      const userSelectedModel = config.groqModel === 'openai/gpt-oss-120b' ? 'openai/gpt-oss-120b' : 'openai/gpt-oss-20b';
       const modelsToTry = [
-        config.groqModel || 'llama-3.1-8b-instant',
-        'llama-3.3-70b-versatile',
-        'llama-3.1-8b-instant'
+        userSelectedModel,
+        userSelectedModel === 'openai/gpt-oss-20b' ? 'openai/gpt-oss-120b' : 'openai/gpt-oss-20b'
       ];
 
-      // Deduplicate
-      const uniqueModels = [...new Set(modelsToTry)];
-      let lastError = null;
+      let lastErrorMsg = null;
 
-      for (const modelName of uniqueModels) {
+      for (const modelName of modelsToTry) {
         try {
           const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
@@ -159,14 +143,21 @@ window.LLMProvider = (function() {
 
           if (!resp.ok) {
             const errJson = await resp.json().catch(() => null);
-            const errMsg = errJson?.error?.message || `Groq returned HTTP ${resp.status}`;
-            lastError = new Error(errMsg);
-            // If model not found (404), try next model
-            if (resp.status === 404) {
-              console.warn(`Groq model ${modelName} returned 404, attempting fallback...`);
+            const errDetail = errJson?.error?.message || `HTTP ${resp.status}`;
+
+            if (resp.status === 401 || resp.status === 403) {
+              lastErrorMsg = `Groq authentication error (${resp.status}): Invalid API key`;
+              break;
+            } else if (resp.status === 429) {
+              lastErrorMsg = 'Groq rate limit or quota exceeded (429)';
+              break;
+            } else if (resp.status === 404) {
+              lastErrorMsg = `Groq model '${modelName}' unavailable (404)`;
               continue;
+            } else {
+              lastErrorMsg = `Groq error: ${errDetail}`;
+              break;
             }
-            throw lastError;
           }
 
           const data = await resp.json();
@@ -174,24 +165,22 @@ window.LLMProvider = (function() {
           const validated = validateAndSanitizeSpec(content, prompt);
           return { spec: validated, source: `groq (${modelName})` };
         } catch (err) {
-          lastError = err;
-          if (!err.message?.includes('404')) {
-            break;
-          }
+          lastErrorMsg = err.message || 'Groq network connection error';
+          break;
         }
       }
 
-      console.warn('Groq call failed, falling back to Local Interpreter:', lastError);
       return {
         spec: PromptInterpreter.interpret(prompt, remixSeed),
         source: 'local-fallback',
-        error: lastError ? lastError.message : 'Groq request failed'
+        error: lastErrorMsg || 'Groq request failed'
       };
     }
 
     // Mode B: Direct Gemini Client-side Key
     if (config.mode === 'gemini') {
-      if (!config.geminiApiKey) {
+      const apiKey = (config.geminiApiKey || '').trim();
+      if (!apiKey) {
         return {
           spec: PromptInterpreter.interpret(prompt, remixSeed),
           source: 'local-fallback',
@@ -199,34 +188,59 @@ window.LLMProvider = (function() {
         };
       }
 
-      try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${config.geminiApiKey}`;
-        const resp = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{
-              parts: [{
-                text: `You are a YouTube thumbnail designer for 'AI Simplified Lab'. Return JSON only matching schema: { category, composition, headline, headlineHighlight, subtitle, badge, focalSubject, palette: {bgDark, bgMid, accent1, accent2}, effects: {gridFloor, laserBeams, particleDensity} }. Design thumbnail for: "${prompt}"`
-              }]
-            }],
-            generationConfig: { responseMimeType: 'application/json' }
-          })
-        });
+      const geminiModels = ['gemini-2.5-flash', 'gemini-1.5-flash'];
+      let lastErrorMsg = null;
 
-        if (!resp.ok) throw new Error(`Gemini returned ${resp.status}`);
-        const data = await resp.json();
-        const content = JSON.parse(data.candidates?.[0]?.content?.parts?.[0]?.text || '{}');
-        const validated = validateAndSanitizeSpec(content, prompt);
-        return { spec: validated, source: 'gemini' };
-      } catch (err) {
-        console.warn('Gemini direct call failed, falling back to Local Interpreter:', err);
-        return {
-          spec: PromptInterpreter.interpret(prompt, remixSeed),
-          source: 'local-fallback',
-          error: err.message
-        };
+      for (const modelName of geminiModels) {
+        try {
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(apiKey)}`;
+          const resp = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{
+                parts: [{
+                  text: `You are a YouTube thumbnail designer for 'AI Simplified Lab'. Return JSON only matching schema: { category, composition, headline, headlineHighlight, subtitle, badge, focalSubject, palette: {bgDark, bgMid, accent1, accent2}, effects: {gridFloor, laserBeams, particleDensity} }. Design thumbnail for: "${prompt}"`
+                }]
+              }],
+              generationConfig: { responseMimeType: 'application/json' }
+            })
+          });
+
+          if (!resp.ok) {
+            const errJson = await resp.json().catch(() => null);
+            const errDetail = errJson?.error?.message || `HTTP ${resp.status}`;
+
+            if (resp.status === 400 || resp.status === 401 || resp.status === 403) {
+              lastErrorMsg = `Gemini authentication error (${resp.status}): Invalid API key`;
+              break;
+            } else if (resp.status === 429) {
+              lastErrorMsg = 'Gemini rate limit or quota exceeded (429)';
+              break;
+            } else if (resp.status === 404) {
+              lastErrorMsg = `Gemini model '${modelName}' unavailable (404)`;
+              continue;
+            } else {
+              lastErrorMsg = `Gemini error: ${errDetail}`;
+              break;
+            }
+          }
+
+          const data = await resp.json();
+          const content = JSON.parse(data.candidates?.[0]?.content?.parts?.[0]?.text || '{}');
+          const validated = validateAndSanitizeSpec(content, prompt);
+          return { spec: validated, source: `gemini (${modelName})` };
+        } catch (err) {
+          lastErrorMsg = err.message || 'Gemini network connection error';
+          break;
+        }
       }
+
+      return {
+        spec: PromptInterpreter.interpret(prompt, remixSeed),
+        source: 'local-fallback',
+        error: lastErrorMsg || 'Gemini request failed'
+      };
     }
 
     // Default fallback

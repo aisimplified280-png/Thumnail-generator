@@ -4,7 +4,8 @@
 window.StudioStorage = (function() {
   'use strict';
 
-  const DB_NAME = 'ThumbnailStudioDB';
+  const DB_NAME = 'as_thumb_studio_db';
+  const OLD_DB_NAME = 'ThumbnailStudioDB';
   const DB_VERSION = 1;
   const STORE_PROJECTS = 'projects';
   const STORE_ASSETS = 'assets';
@@ -14,7 +15,7 @@ window.StudioStorage = (function() {
   function initDB() {
     if (dbPromise) return dbPromise;
 
-    dbPromise = new Promise((resolve, reject) => {
+    dbPromise = new Promise((resolve) => {
       if (!window.indexedDB) {
         console.warn('IndexedDB not supported, falling back to localStorage');
         resolve(null);
@@ -33,7 +34,38 @@ window.StudioStorage = (function() {
         }
       };
 
-      request.onsuccess = (event) => resolve(event.target.result);
+      request.onsuccess = async (event) => {
+        const db = event.target.result;
+        // Attempt one-time legacy migration if newly created DB is empty
+        try {
+          const tx = db.transaction(STORE_PROJECTS, 'readonly');
+          const countReq = tx.objectStore(STORE_PROJECTS).count();
+          countReq.onsuccess = () => {
+            if (countReq.result === 0 && window.indexedDB.databases) {
+              const oldReq = indexedDB.open(OLD_DB_NAME, 1);
+              oldReq.onsuccess = () => {
+                const oldDb = oldReq.result;
+                if (oldDb.objectStoreNames.contains(STORE_PROJECTS)) {
+                  const oldTx = oldDb.transaction(STORE_PROJECTS, 'readonly');
+                  const getOld = oldTx.objectStore(STORE_PROJECTS).getAll();
+                  getOld.onsuccess = () => {
+                    const oldProjects = getOld.result || [];
+                    if (oldProjects.length > 0) {
+                      const writeTx = db.transaction(STORE_PROJECTS, 'readwrite');
+                      const writeStore = writeTx.objectStore(STORE_PROJECTS);
+                      oldProjects.forEach(p => writeStore.put(p));
+                    }
+                  };
+                }
+              };
+            }
+          };
+        } catch (e) {
+          // Migration check ignored if not supported
+        }
+        resolve(db);
+      };
+
       request.onerror = (event) => {
         console.warn('IndexedDB open error:', event.target.error);
         resolve(null);
@@ -57,9 +89,9 @@ window.StudioStorage = (function() {
         tx.onerror = () => reject(tx.error);
       });
     } else {
-      // LocalStorage fallback
+      // LocalStorage fallback with namespaced key
       try {
-        const key = `studio_proj_${project.id}`;
+        const key = `as_thumb_proj_${project.id}`;
         localStorage.setItem(key, JSON.stringify(project));
         return true;
       } catch (e) {
@@ -86,11 +118,16 @@ window.StudioStorage = (function() {
       });
     } else {
       const list = [];
+      const seenIds = new Set();
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
-        if (k && k.startsWith('studio_proj_')) {
+        if (k && (k.startsWith('as_thumb_proj_') || k.startsWith('studio_proj_'))) {
           try {
-            list.push(JSON.parse(localStorage.getItem(k)));
+            const p = JSON.parse(localStorage.getItem(k));
+            if (p && p.id && !seenIds.has(p.id)) {
+              seenIds.add(p.id);
+              list.push(p);
+            }
           } catch (e) {}
         }
       }
@@ -111,6 +148,7 @@ window.StudioStorage = (function() {
         tx.onerror = () => resolve(false);
       });
     } else {
+      localStorage.removeItem(`as_thumb_proj_${id}`);
       localStorage.removeItem(`studio_proj_${id}`);
       return true;
     }

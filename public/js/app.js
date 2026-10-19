@@ -27,8 +27,13 @@
     // Initialize Layer Editor
     editor = new LayerEditor.Editor(engine, onLayerStateChange);
 
-    // Initialize Security Lock (Option B)
-    initSecurity();
+    // Clean up legacy PIN storage if present
+    try {
+      localStorage.removeItem('studio_pin_hash');
+      localStorage.removeItem('studio_pin_fails');
+      localStorage.removeItem('studio_pin_lockout');
+      sessionStorage.removeItem('studio_unlocked');
+    } catch (e) {}
 
     // Bind UI Events
     bindHeaderEvents();
@@ -64,113 +69,7 @@
     }
   }
 
-  // Security & Passcode Management (Option B)
-  async function hashPin(pin) {
-    const encoder = new TextEncoder();
-    const data = encoder.encode((pin || '').trim());
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
-  }
 
-  function initSecurity() {
-    const lockOverlay = document.getElementById('lock-screen-overlay');
-    const lockCard = document.getElementById('lock-card');
-    const lockTitle = document.getElementById('lock-screen-title');
-    const lockSubtitle = document.getElementById('lock-screen-subtitle');
-    const pinInput = document.getElementById('studio-pin-input');
-    const btnUnlockText = document.getElementById('btn-unlock-text');
-    const lockError = document.getElementById('lock-error-msg');
-    const lockForm = document.getElementById('lock-pin-form');
-
-    if (!lockOverlay || !pinInput) return;
-
-    // Check if session already unlocked
-    if (sessionStorage.getItem('studio_unlocked') === 'true') {
-      lockOverlay.classList.add('unlocked');
-    }
-
-    // Check if master PIN is configured
-    function updateLockDialogText() {
-      const storedHash = localStorage.getItem('studio_pin_hash');
-      if (!storedHash) {
-        lockTitle.textContent = 'SET PRIVATE STUDIO PIN';
-        lockSubtitle.textContent = 'Welcome! Set a private security PIN to protect your studio from unauthorized access.';
-        btnUnlockText.textContent = 'Save PIN & Unlock';
-      } else {
-        lockTitle.textContent = 'PRIVATE STUDIO ACCESS';
-        lockSubtitle.textContent = 'This creative studio is private. Enter your security PIN to unlock.';
-        btnUnlockText.textContent = 'Unlock Studio';
-      }
-    }
-    updateLockDialogText();
-
-    let failedAttempts = parseInt(localStorage.getItem('studio_pin_fails') || '0', 10);
-    let lockoutUntil = parseInt(localStorage.getItem('studio_pin_lockout') || '0', 10);
-
-    lockForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-
-      if (Date.now() < lockoutUntil) {
-        const remainingSec = Math.ceil((lockoutUntil - Date.now()) / 1000);
-        showLockError(`Too many failed attempts. Locked for ${remainingSec}s.`);
-        return;
-      }
-
-      const val = pinInput.value.trim();
-      if (!val || val.length < 4) {
-        showLockError('PIN/Password must be at least 4 characters');
-        return;
-      }
-
-      const storedHash = localStorage.getItem('studio_pin_hash');
-      const inputHash = await hashPin(val);
-
-      if (!storedHash) {
-        // First-time setup
-        localStorage.setItem('studio_pin_hash', inputHash);
-        sessionStorage.setItem('studio_unlocked', 'true');
-        lockOverlay.classList.add('unlocked');
-        pinInput.value = '';
-        lockError.textContent = '';
-        failedAttempts = 0;
-        localStorage.removeItem('studio_pin_fails');
-        localStorage.removeItem('studio_pin_lockout');
-        showToast('Private password configured. Studio unlocked!', 'success');
-      } else if (inputHash === storedHash) {
-        // Correct PIN
-        sessionStorage.setItem('studio_unlocked', 'true');
-        lockOverlay.classList.add('unlocked');
-        pinInput.value = '';
-        lockError.textContent = '';
-        failedAttempts = 0;
-        localStorage.removeItem('studio_pin_fails');
-        localStorage.removeItem('studio_pin_lockout');
-        showToast('Studio unlocked', 'success');
-      } else {
-        // Wrong PIN
-        failedAttempts++;
-        localStorage.setItem('studio_pin_fails', failedAttempts.toString());
-
-        if (failedAttempts >= 5) {
-          lockoutUntil = Date.now() + 5 * 60 * 1000; // 5 min lockout
-          localStorage.setItem('studio_pin_lockout', lockoutUntil.toString());
-          showLockError('5 failed attempts. Studio locked for 5 minutes.');
-        } else {
-          showLockError(`Incorrect PIN. ${5 - failedAttempts} attempts remaining.`);
-        }
-
-        pinInput.value = '';
-        pinInput.focus();
-      }
-    });
-
-    function showLockError(msg) {
-      lockError.textContent = msg;
-      lockCard.classList.remove('lock-shake');
-      void lockCard.offsetWidth; // trigger reflow
-      lockCard.classList.add('lock-shake');
-    }
-  }
 
   // Update canvas DOM
   function updateCanvas() {
@@ -182,15 +81,15 @@
   function updateGenModeBadge() {
     if (!badgeGenMode) return;
     const cfg = LLMProvider.getConfig();
-    if (cfg.mode === 'local') {
-      badgeGenMode.textContent = 'Mode A: Local Engine (Free, Offline)';
-      badgeGenMode.style.color = 'var(--accent-emerald)';
-    } else if (cfg.mode === 'pages-api') {
-      badgeGenMode.textContent = 'Mode B: Pages API (/api/design)';
+    if (cfg.mode === 'groq') {
+      badgeGenMode.textContent = `Mode B: Groq (${cfg.groqModel || 'openai/gpt-oss-20b'})`;
+      badgeGenMode.style.color = 'var(--accent-cyan)';
+    } else if (cfg.mode === 'gemini') {
+      badgeGenMode.textContent = 'Mode B: Google Gemini (gemini-2.5-flash)';
       badgeGenMode.style.color = 'var(--accent-cyan)';
     } else {
-      badgeGenMode.textContent = `Mode B: Direct ${cfg.mode.toUpperCase()}`;
-      badgeGenMode.style.color = 'var(--accent-cyan)';
+      badgeGenMode.textContent = 'Mode A: Local Engine (Free, Offline)';
+      badgeGenMode.style.color = 'var(--accent-emerald)';
     }
   }
 
@@ -341,21 +240,7 @@
       }
     });
 
-    // Lock button
-    const btnLock = document.getElementById('btn-lock-studio');
-    if (btnLock) {
-      btnLock.addEventListener('click', () => {
-        sessionStorage.removeItem('studio_unlocked');
-        const lockOverlay = document.getElementById('lock-screen-overlay');
-        const pinInput = document.getElementById('studio-pin-input');
-        if (lockOverlay) lockOverlay.classList.remove('unlocked');
-        if (pinInput) {
-          pinInput.value = '';
-          pinInput.focus();
-        }
-        showToast('Studio locked');
-      });
-    }
+
 
     // Keyboard shortcuts (Ctrl+Z, Ctrl+Y)
     window.addEventListener('keydown', (e) => {
@@ -688,7 +573,7 @@
       const cfg = LLMProvider.getConfig();
       selectProvider.value = cfg.mode || 'local';
       groqKeyInput.value = cfg.groqApiKey || '';
-      if (groqModelSelect) groqModelSelect.value = cfg.groqModel || 'llama-3.1-8b-instant';
+      if (groqModelSelect) groqModelSelect.value = cfg.groqModel || 'openai/gpt-oss-20b';
       geminiKeyInput.value = cfg.geminiApiKey || '';
       updateSettingsVisibility();
       modalSettings.classList.add('open');
@@ -710,42 +595,13 @@
       LLMProvider.saveConfig({
         mode: selectProvider.value,
         groqApiKey: groqKeyInput.value.trim(),
-        groqModel: groqModelSelect ? groqModelSelect.value : 'llama-3.1-8b-instant',
+        groqModel: groqModelSelect ? groqModelSelect.value : 'openai/gpt-oss-20b',
         geminiApiKey: geminiKeyInput.value.trim()
       });
       updateGenModeBadge();
       modalSettings.classList.remove('open');
       showToast('Settings saved successfully', 'success');
     });
-
-    // Change Security PIN
-    const btnChangePin = document.getElementById('btn-change-pin');
-    if (btnChangePin) {
-      btnChangePin.addEventListener('click', async () => {
-        const oldPin = document.getElementById('setting-old-pin').value.trim();
-        const newPin = document.getElementById('setting-new-pin').value.trim();
-        const storedHash = localStorage.getItem('studio_pin_hash');
-
-        if (storedHash) {
-          const oldHash = await hashPin(oldPin);
-          if (oldHash !== storedHash) {
-            showToast('Current PIN is incorrect', 'error');
-            return;
-          }
-        }
-
-        if (!newPin || newPin.length < 4) {
-          showToast('New PIN must be at least 4 characters', 'error');
-          return;
-        }
-
-        const newHash = await hashPin(newPin);
-        localStorage.setItem('studio_pin_hash', newHash);
-        document.getElementById('setting-old-pin').value = '';
-        document.getElementById('setting-new-pin').value = '';
-        showToast('Studio Access PIN updated successfully!', 'success');
-      });
-    }
 
     // Export Modal
     const modalExport = document.getElementById('modal-export');
@@ -784,8 +640,9 @@
           await StudioExport.exportJpeg(engine, `${baseName}.jpg`, 0.92, scale);
         } else if (fmt === 'svg') {
           await StudioExport.exportSvg(engine, `${baseName}.svg`, transparent);
+        } else if (fmt === 'json') {
           const projectData = {
-            title: projectTitleInput.value.trim(),
+            title: projectTitleInput.value.trim() || 'Untitled Thumbnail',
             format: engine.currentFormat,
             spec: engine.spec,
             theme: engine.theme,
