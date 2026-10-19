@@ -27,6 +27,9 @@
     // Initialize Layer Editor
     editor = new LayerEditor.Editor(engine, onLayerStateChange);
 
+    // Initialize Security Lock (Option B)
+    initSecurity();
+
     // Bind UI Events
     bindHeaderEvents();
     bindPromptEvents();
@@ -58,6 +61,88 @@
       await StudioStorage.initDB();
     } catch (e) {
       console.warn('DB init note:', e);
+    }
+  }
+
+  // Security & Passcode Management (Option B)
+  async function hashPin(pin) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode((pin || '').trim());
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  function initSecurity() {
+    const lockOverlay = document.getElementById('lock-screen-overlay');
+    const lockCard = document.getElementById('lock-card');
+    const lockTitle = document.getElementById('lock-screen-title');
+    const lockSubtitle = document.getElementById('lock-screen-subtitle');
+    const pinInput = document.getElementById('studio-pin-input');
+    const btnUnlockText = document.getElementById('btn-unlock-text');
+    const lockError = document.getElementById('lock-error-msg');
+    const lockForm = document.getElementById('lock-pin-form');
+
+    if (!lockOverlay || !pinInput) return;
+
+    // Check if session already unlocked
+    if (sessionStorage.getItem('studio_unlocked') === 'true') {
+      lockOverlay.classList.add('unlocked');
+    }
+
+    // Check if master PIN is configured
+    function updateLockDialogText() {
+      const storedHash = localStorage.getItem('studio_pin_hash');
+      if (!storedHash) {
+        lockTitle.textContent = 'SET PRIVATE STUDIO PIN';
+        lockSubtitle.textContent = 'Welcome! Set a private security PIN to protect your studio from unauthorized access.';
+        btnUnlockText.textContent = 'Save PIN & Unlock';
+      } else {
+        lockTitle.textContent = 'PRIVATE STUDIO ACCESS';
+        lockSubtitle.textContent = 'This creative studio is private. Enter your security PIN to unlock.';
+        btnUnlockText.textContent = 'Unlock Studio';
+      }
+    }
+    updateLockDialogText();
+
+    lockForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const val = pinInput.value.trim();
+      if (!val || val.length < 4) {
+        showLockError('PIN must be at least 4 characters');
+        return;
+      }
+
+      const storedHash = localStorage.getItem('studio_pin_hash');
+      const inputHash = await hashPin(val);
+
+      if (!storedHash) {
+        // First-time setup
+        localStorage.setItem('studio_pin_hash', inputHash);
+        sessionStorage.setItem('studio_unlocked', 'true');
+        lockOverlay.classList.add('unlocked');
+        pinInput.value = '';
+        lockError.textContent = '';
+        showToast('Private PIN configured. Studio unlocked!', 'success');
+      } else if (inputHash === storedHash) {
+        // Correct PIN
+        sessionStorage.setItem('studio_unlocked', 'true');
+        lockOverlay.classList.add('unlocked');
+        pinInput.value = '';
+        lockError.textContent = '';
+        showToast('Studio unlocked', 'success');
+      } else {
+        // Wrong PIN
+        showLockError('Incorrect PIN. Please try again.');
+        pinInput.value = '';
+        pinInput.focus();
+      }
+    });
+
+    function showLockError(msg) {
+      lockError.textContent = msg;
+      lockCard.classList.remove('lock-shake');
+      void lockCard.offsetWidth; // trigger reflow
+      lockCard.classList.add('lock-shake');
     }
   }
 
@@ -229,6 +314,22 @@
         showToast('Redo');
       }
     });
+
+    // Lock button
+    const btnLock = document.getElementById('btn-lock-studio');
+    if (btnLock) {
+      btnLock.addEventListener('click', () => {
+        sessionStorage.removeItem('studio_unlocked');
+        const lockOverlay = document.getElementById('lock-screen-overlay');
+        const pinInput = document.getElementById('studio-pin-input');
+        if (lockOverlay) lockOverlay.classList.remove('unlocked');
+        if (pinInput) {
+          pinInput.value = '';
+          pinInput.focus();
+        }
+        showToast('Studio locked');
+      });
+    }
 
     // Keyboard shortcuts (Ctrl+Z, Ctrl+Y)
     window.addEventListener('keydown', (e) => {
@@ -590,6 +691,35 @@
       modalSettings.classList.remove('open');
       showToast('Settings saved successfully', 'success');
     });
+
+    // Change Security PIN
+    const btnChangePin = document.getElementById('btn-change-pin');
+    if (btnChangePin) {
+      btnChangePin.addEventListener('click', async () => {
+        const oldPin = document.getElementById('setting-old-pin').value.trim();
+        const newPin = document.getElementById('setting-new-pin').value.trim();
+        const storedHash = localStorage.getItem('studio_pin_hash');
+
+        if (storedHash) {
+          const oldHash = await hashPin(oldPin);
+          if (oldHash !== storedHash) {
+            showToast('Current PIN is incorrect', 'error');
+            return;
+          }
+        }
+
+        if (!newPin || newPin.length < 4) {
+          showToast('New PIN must be at least 4 characters', 'error');
+          return;
+        }
+
+        const newHash = await hashPin(newPin);
+        localStorage.setItem('studio_pin_hash', newHash);
+        document.getElementById('setting-old-pin').value = '';
+        document.getElementById('setting-new-pin').value = '';
+        showToast('Studio Access PIN updated successfully!', 'success');
+      });
+    }
 
     // Export Modal
     const modalExport = document.getElementById('modal-export');
