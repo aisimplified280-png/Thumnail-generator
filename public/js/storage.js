@@ -34,37 +34,107 @@ window.StudioStorage = (function() {
         }
       };
 
-      request.onsuccess = async (event) => {
-        const db = event.target.result;
-        // Attempt one-time legacy migration if newly created DB is empty
-        try {
-          const tx = db.transaction(STORE_PROJECTS, 'readonly');
-          const countReq = tx.objectStore(STORE_PROJECTS).count();
-          countReq.onsuccess = () => {
-            if (countReq.result === 0 && window.indexedDB.databases) {
-              const oldReq = indexedDB.open(OLD_DB_NAME, 1);
-              oldReq.onsuccess = () => {
-                const oldDb = oldReq.result;
-                if (oldDb.objectStoreNames.contains(STORE_PROJECTS)) {
-                  const oldTx = oldDb.transaction(STORE_PROJECTS, 'readonly');
-                  const getOld = oldTx.objectStore(STORE_PROJECTS).getAll();
-                  getOld.onsuccess = () => {
-                    const oldProjects = getOld.result || [];
-                    if (oldProjects.length > 0) {
-                      const writeTx = db.transaction(STORE_PROJECTS, 'readwrite');
-                      const writeStore = writeTx.objectStore(STORE_PROJECTS);
-                      oldProjects.forEach(p => writeStore.put(p));
-                    }
-                  };
-                }
-              };
-            }
-          };
-        } catch (e) {
-          // Migration check ignored if not supported
+  // Asynchronous migration of projects from legacy ThumbnailStudioDB
+  async function migrateLegacyProjects(newDb) {
+    if (!window.indexedDB) return;
+    try {
+      const isMigrated = localStorage.getItem('as_thumb_idb_migrated');
+      if (isMigrated === 'true') return;
+
+      // Check if databases() method exists to avoid creating an empty legacy DB
+      if (typeof indexedDB.databases === 'function') {
+        const dbs = await indexedDB.databases().catch(() => []);
+        const hasOld = dbs.some(d => d && d.name === OLD_DB_NAME);
+        if (!hasOld) {
+          localStorage.setItem('as_thumb_idb_migrated', 'true');
+          return;
         }
-        resolve(db);
-      };
+      }
+
+      await new Promise((resolveMigration) => {
+        let completed = false;
+        const finish = () => {
+          if (!completed) {
+            completed = true;
+            resolveMigration();
+          }
+        };
+
+        const oldReq = indexedDB.open(OLD_DB_NAME);
+        oldReq.onerror = finish;
+        oldReq.onblocked = finish;
+
+        oldReq.onsuccess = () => {
+          const oldDb = oldReq.result;
+          if (!oldDb.objectStoreNames.contains(STORE_PROJECTS)) {
+            oldDb.close();
+            finish();
+            return;
+          }
+
+          try {
+            const oldTx = oldDb.transaction(STORE_PROJECTS, 'readonly');
+            const getOld = oldTx.objectStore(STORE_PROJECTS).getAll();
+
+            getOld.onerror = () => {
+              oldDb.close();
+              finish();
+            };
+
+            getOld.onsuccess = () => {
+              const oldProjects = getOld.result || [];
+              oldDb.close(); // Safely close legacy DB immediately after reading
+
+              if (oldProjects.length === 0) {
+                finish();
+                return;
+              }
+
+              try {
+                const writeTx = newDb.transaction(STORE_PROJECTS, 'readwrite');
+                const writeStore = writeTx.objectStore(STORE_PROJECTS);
+                const keysReq = writeStore.getAllKeys();
+
+                keysReq.onerror = finish;
+                keysReq.onsuccess = () => {
+                  const existingKeys = new Set(keysReq.result || []);
+                  for (const p of oldProjects) {
+                    if (p && p.id && !existingKeys.has(p.id)) {
+                      writeStore.put(p);
+                    }
+                  }
+                };
+
+                writeTx.oncomplete = finish;
+                writeTx.onerror = finish;
+              } catch (writeErr) {
+                console.warn('Migration write failed:', writeErr);
+                finish();
+              }
+            };
+          } catch (txErr) {
+            console.warn('Migration transaction error:', txErr);
+            try { oldDb.close(); } catch (cErr) {}
+            finish();
+          }
+        };
+      });
+
+      localStorage.setItem('as_thumb_idb_migrated', 'true');
+    } catch (e) {
+      console.warn('Migration exception:', e);
+    }
+  }
+
+  request.onsuccess = async (event) => {
+    const db = event.target.result;
+    try {
+      await migrateLegacyProjects(db);
+    } catch (e) {
+      console.warn('Migration error during DB initialization:', e);
+    }
+    resolve(db);
+  };
 
       request.onerror = (event) => {
         console.warn('IndexedDB open error:', event.target.error);
@@ -184,13 +254,18 @@ window.StudioStorage = (function() {
     undo(currentStateSnapshot) {
       if (!this.canUndo()) return null;
       this.isLocked = true;
-      const currentClone = JSON.parse(JSON.stringify(currentStateSnapshot));
-      this.redoStack.push(currentClone);
+      if (currentStateSnapshot) {
+        const currentClone = JSON.parse(JSON.stringify(currentStateSnapshot));
+        this.redoStack.push(currentClone);
+      } else {
+        const popped = this.undoStack[this.undoStack.length - 1];
+        if (popped) this.redoStack.push(JSON.parse(JSON.stringify(popped)));
+      }
 
       this.undoStack.pop(); // Remove top (current) state
       const targetState = this.undoStack[this.undoStack.length - 1];
       this.isLocked = false;
-      return JSON.parse(JSON.stringify(targetState));
+      return targetState ? JSON.parse(JSON.stringify(targetState)) : null;
     }
 
     redo() {

@@ -85,7 +85,7 @@
       badgeGenMode.textContent = `Mode B: Groq (${cfg.groqModel || 'openai/gpt-oss-20b'})`;
       badgeGenMode.style.color = 'var(--accent-cyan)';
     } else if (cfg.mode === 'gemini') {
-      badgeGenMode.textContent = 'Mode B: Google Gemini (gemini-2.5-flash)';
+      badgeGenMode.textContent = 'Mode B: Google Gemini (gemini-3.8-flash)';
       badgeGenMode.style.color = 'var(--accent-cyan)';
     } else {
       badgeGenMode.textContent = 'Mode A: Local Engine (Free, Offline)';

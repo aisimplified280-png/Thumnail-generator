@@ -188,7 +188,7 @@ window.LLMProvider = (function() {
         };
       }
 
-      const geminiModels = ['gemini-2.5-flash', 'gemini-1.5-flash'];
+      const geminiModels = ['gemini-3.8-flash', 'gemini-2.5-flash'];
       let lastErrorMsg = null;
 
       for (const modelName of geminiModels) {
@@ -211,8 +211,11 @@ window.LLMProvider = (function() {
             const errJson = await resp.json().catch(() => null);
             const errDetail = errJson?.error?.message || `HTTP ${resp.status}`;
 
-            if (resp.status === 400 || resp.status === 401 || resp.status === 403) {
+            if (resp.status === 401 || resp.status === 403) {
               lastErrorMsg = `Gemini authentication error (${resp.status}): Invalid API key`;
+              break;
+            } else if (resp.status === 400) {
+              lastErrorMsg = `Gemini request error (400): ${errDetail}`;
               break;
             } else if (resp.status === 429) {
               lastErrorMsg = 'Gemini rate limit or quota exceeded (429)';
