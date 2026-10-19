@@ -142,6 +142,11 @@
     editor.renderLayersList();
     editor.renderInspector();
     updateUndoRedoButtons();
+
+    // Synchronize active format button state with restored format
+    document.querySelectorAll('.format-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.format === engine.currentFormat);
+    });
   }
 
   function updateUndoRedoButtons() {

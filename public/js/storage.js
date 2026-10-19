@@ -43,33 +43,65 @@ window.StudioStorage = (function() {
 
       // Check if databases() method exists to avoid creating an empty legacy DB
       if (typeof indexedDB.databases === 'function') {
-        const dbs = await indexedDB.databases().catch(() => []);
-        const hasOld = dbs.some(d => d && d.name === OLD_DB_NAME);
-        if (!hasOld) {
-          localStorage.setItem('as_thumb_idb_migrated', 'true');
-          return;
+        const dbs = await indexedDB.databases().catch(() => null);
+        if (Array.isArray(dbs)) {
+          const hasOld = dbs.some(d => d && d.name === OLD_DB_NAME);
+          if (!hasOld) {
+            localStorage.setItem('as_thumb_idb_migrated', 'true');
+            return;
+          }
         }
       }
 
-      await new Promise((resolveMigration) => {
+      const migrationSuccess = await new Promise((resolveMigration) => {
+        let isBrandNewDb = false;
         let completed = false;
-        const finish = () => {
+
+        const finish = (success) => {
           if (!completed) {
             completed = true;
-            resolveMigration();
+            resolveMigration(Boolean(success));
           }
         };
 
-        const oldReq = indexedDB.open(OLD_DB_NAME);
-        oldReq.onerror = finish;
-        oldReq.onblocked = finish;
+        let oldReq;
+        try {
+          oldReq = indexedDB.open(OLD_DB_NAME);
+        } catch (openErr) {
+          console.warn('Cannot open legacy DB:', openErr);
+          return finish(false);
+        }
+
+        oldReq.onerror = () => {
+          console.warn('Legacy DB open error; will retry next session');
+          finish(false);
+        };
+
+        oldReq.onblocked = () => {
+          console.warn('Legacy DB open blocked; will retry next session');
+          finish(false);
+        };
+
+        oldReq.onupgradeneeded = (e) => {
+          // If oldVersion === 0, the DB did not exist prior to this call
+          if (e.oldVersion === 0) {
+            isBrandNewDb = true;
+          }
+        };
 
         oldReq.onsuccess = () => {
           const oldDb = oldReq.result;
+
+          // If this was an unintended newly created empty DB, clean it up
+          if (isBrandNewDb) {
+            oldDb.close();
+            try { indexedDB.deleteDatabase(OLD_DB_NAME); } catch (delErr) {}
+            return finish(true);
+          }
+
           if (!oldDb.objectStoreNames.contains(STORE_PROJECTS)) {
             oldDb.close();
-            finish();
-            return;
+            return finish(true);
           }
 
           try {
@@ -78,7 +110,7 @@ window.StudioStorage = (function() {
 
             getOld.onerror = () => {
               oldDb.close();
-              finish();
+              finish(false);
             };
 
             getOld.onsuccess = () => {
@@ -86,8 +118,7 @@ window.StudioStorage = (function() {
               oldDb.close(); // Safely close legacy DB immediately after reading
 
               if (oldProjects.length === 0) {
-                finish();
-                return;
+                return finish(true);
               }
 
               try {
@@ -95,7 +126,7 @@ window.StudioStorage = (function() {
                 const writeStore = writeTx.objectStore(STORE_PROJECTS);
                 const keysReq = writeStore.getAllKeys();
 
-                keysReq.onerror = finish;
+                keysReq.onerror = () => finish(false);
                 keysReq.onsuccess = () => {
                   const existingKeys = new Set(keysReq.result || []);
                   for (const p of oldProjects) {
@@ -105,22 +136,27 @@ window.StudioStorage = (function() {
                   }
                 };
 
-                writeTx.oncomplete = finish;
-                writeTx.onerror = finish;
+                writeTx.oncomplete = () => finish(true);
+                writeTx.onerror = (txErr) => {
+                  console.warn('Migration write failed:', txErr);
+                  finish(false);
+                };
               } catch (writeErr) {
-                console.warn('Migration write failed:', writeErr);
-                finish();
+                console.warn('Migration write transaction error:', writeErr);
+                finish(false);
               }
             };
           } catch (txErr) {
-            console.warn('Migration transaction error:', txErr);
+            console.warn('Migration read transaction error:', txErr);
             try { oldDb.close(); } catch (cErr) {}
-            finish();
+            finish(false);
           }
         };
       });
 
-      localStorage.setItem('as_thumb_idb_migrated', 'true');
+      if (migrationSuccess) {
+        localStorage.setItem('as_thumb_idb_migrated', 'true');
+      }
     } catch (e) {
       console.warn('Migration exception:', e);
     }

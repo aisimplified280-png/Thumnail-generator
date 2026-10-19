@@ -188,55 +188,47 @@ window.LLMProvider = (function() {
         };
       }
 
-      const geminiModels = ['gemini-3.8-flash', 'gemini-2.5-flash'];
+      const geminiModel = 'gemini-3.8-flash';
       let lastErrorMsg = null;
 
-      for (const modelName of geminiModels) {
-        try {
-          const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(apiKey)}`;
-          const resp = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{
-                parts: [{
-                  text: `You are a YouTube thumbnail designer for 'AI Simplified Lab'. Return JSON only matching schema: { category, composition, headline, headlineHighlight, subtitle, badge, focalSubject, palette: {bgDark, bgMid, accent1, accent2}, effects: {gridFloor, laserBeams, particleDensity} }. Design thumbnail for: "${prompt}"`
-                }]
-              }],
-              generationConfig: { responseMimeType: 'application/json' }
-            })
-          });
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${encodeURIComponent(apiKey)}`;
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              parts: [{
+                text: `You are a YouTube thumbnail designer for 'AI Simplified Lab'. Return JSON only matching schema: { category, composition, headline, headlineHighlight, subtitle, badge, focalSubject, palette: {bgDark, bgMid, accent1, accent2}, effects: {gridFloor, laserBeams, particleDensity} }. Design thumbnail for: "${prompt}"`
+              }]
+            }],
+            generationConfig: { responseMimeType: 'application/json' }
+          })
+        });
 
-          if (!resp.ok) {
-            const errJson = await resp.json().catch(() => null);
-            const errDetail = errJson?.error?.message || `HTTP ${resp.status}`;
+        if (!resp.ok) {
+          const errJson = await resp.json().catch(() => null);
+          const errDetail = errJson?.error?.message || `HTTP ${resp.status}`;
 
-            if (resp.status === 401 || resp.status === 403) {
-              lastErrorMsg = `Gemini authentication error (${resp.status}): Invalid API key`;
-              break;
-            } else if (resp.status === 400) {
-              lastErrorMsg = `Gemini request error (400): ${errDetail}`;
-              break;
-            } else if (resp.status === 429) {
-              lastErrorMsg = 'Gemini rate limit or quota exceeded (429)';
-              break;
-            } else if (resp.status === 404) {
-              lastErrorMsg = `Gemini model '${modelName}' unavailable (404)`;
-              continue;
-            } else {
-              lastErrorMsg = `Gemini error: ${errDetail}`;
-              break;
-            }
+          if (resp.status === 401 || resp.status === 403) {
+            lastErrorMsg = `Gemini authentication error (${resp.status}): Invalid API key`;
+          } else if (resp.status === 400) {
+            lastErrorMsg = `Gemini request error (400): ${errDetail}`;
+          } else if (resp.status === 429) {
+            lastErrorMsg = 'Gemini rate limit or quota exceeded (429)';
+          } else if (resp.status === 404) {
+            lastErrorMsg = `Gemini model '${geminiModel}' unavailable (404)`;
+          } else {
+            lastErrorMsg = `Gemini error: ${errDetail}`;
           }
-
+        } else {
           const data = await resp.json();
           const content = JSON.parse(data.candidates?.[0]?.content?.parts?.[0]?.text || '{}');
           const validated = validateAndSanitizeSpec(content, prompt);
-          return { spec: validated, source: `gemini (${modelName})` };
-        } catch (err) {
-          lastErrorMsg = err.message || 'Gemini network connection error';
-          break;
+          return { spec: validated, source: `gemini (${geminiModel})` };
         }
+      } catch (err) {
+        lastErrorMsg = err.message || 'Gemini network connection error';
       }
 
       return {
