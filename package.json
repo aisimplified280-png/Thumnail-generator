@@ -1,0 +1,12 @@
+{
+  "name": "ai-simplified-lab-thumbnail-studio",
+  "version": "1.0.0",
+  "description": "Prompt-driven YouTube thumbnail creation studio powered by SVG, Canvas, and vanilla JavaScript",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": ["youtube", "thumbnail", "svg", "canvas", "ai-studio"],
+  "author": "AI Simplified Lab",
+  "license": "MIT"
+}

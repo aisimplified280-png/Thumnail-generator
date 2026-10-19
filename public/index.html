@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Simplified Lab — Thumbnail Studio</title>
+  <meta name="description" content="Prompt-driven YouTube thumbnail studio powered by SVG, Canvas and client-side design engine.">
+
+  <!-- Google Fonts for High-CTR YouTube Thumbnails -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700;800&family=Montserrat:wght@700;800;900&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <!-- Top Studio Header -->
+  <header class="studio-header">
+    <div class="brand-section">
+      <div class="brand-logo-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.5">
+          <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+          <polyline points="2 17 12 22 22 17"/>
+          <polyline points="2 12 12 17 22 12"/>
+        </svg>
+      </div>
+      <div class="brand-title">
+        AI SIMPLIFIED LAB
+        <span class="brand-badge">THUMBNAIL STUDIO</span>
+      </div>
+      <input type="text" id="project-title" class="project-title-input" value="AI Escaped Breach" title="Click to rename project">
+    </div>
+
+    <!-- Center Format Reflow Switcher -->
+    <div class="header-center">
+      <div class="format-pill-group">
+        <button class="format-btn active" data-format="16:9" id="btn-fmt-16-9">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/></svg>
+          16:9 Video
+        </button>
+        <button class="format-btn" data-format="9:16" id="btn-fmt-9-16">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/></svg>
+          9:16 Shorts
+        </button>
+        <button class="format-btn" data-format="1:1" id="btn-fmt-1-1">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+          1:1 Square
+        </button>
+      </div>
+    </div>
+
+    <!-- Right Header Actions -->
+    <div class="header-right">
+      <button class="btn-icon" id="btn-undo" title="Undo (Ctrl+Z)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+      </button>
+      <button class="btn-icon" id="btn-redo" title="Redo (Ctrl+Y)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/></svg>
+      </button>
+
+      <div style="width: 1px; height: 20px; background: var(--border-subtle); margin: 0 4px;"></div>
+
+      <button class="btn btn-secondary btn-sm" id="btn-open-projects">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        Projects
+      </button>
+
+      <button class="btn btn-secondary btn-sm" id="btn-open-settings" title="Generation Mode & AI Provider Settings">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        Settings
+      </button>
+
+      <button class="btn btn-primary btn-sm" id="btn-open-export">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Studio Workspace -->
+  <main class="studio-workspace">
+
+    <!-- Left Sidebar: Prompt Engine & Quick Tools -->
+    <aside class="studio-sidebar-left">
+      <!-- Natural Language Prompt Card -->
+      <section class="sidebar-card">
+        <div class="card-title-row">
+          <span class="card-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            Prompt Studio
+          </span>
+          <span class="mode-badge" id="badge-gen-mode">Mode A: Local Engine (Free)</span>
+        </div>
+
+        <textarea id="prompt-input" class="prompt-textarea" placeholder="Describe your thumbnail in natural language... e.g. Create a dramatic thumbnail about an AI agent breaching Hugging Face. Show an AI system breaking through a digital sandbox and reaching a cloud data vault. Use dark navy, cyan lighting, and red breach indicators. Make the headline 'AI ESCAPED?' large and readable.">Create a dramatic thumbnail about an AI agent breaching Hugging Face. Show an AI system breaking through a digital sandbox and reaching a cloud data vault. Use dark navy, cyan lighting, and red breach indicators. Make the headline 'AI ESCAPED?' large and readable.</textarea>
+
+        <div class="prompt-actions">
+          <button class="btn btn-primary" id="btn-generate">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            Generate
+          </button>
+          <button class="btn btn-secondary" id="btn-remix" title="Randomize composition seed, colors, and layout">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
+            Remix
+          </button>
+        </div>
+
+        <!-- Inspiration Chips -->
+        <div class="chips-container">
+          <button class="chip" data-prompt="Create a dramatic thumbnail about an AI agent breaching Hugging Face. Show an AI system breaking through a digital sandbox and reaching a cloud data vault. Use dark navy, cyan lighting, and red breach indicators. Make the headline 'AI ESCAPED?' large and readable.">🤖 HF Breach</button>
+          <button class="chip" data-prompt="Design an explosive YouTube thumbnail for a coding tutorial: 'Building an Autonomous AI Agent in Python'. Feature a sleek terminal window with syntax highlighted code and glowing database cylinders. Headline 'AUTO AGENT'.">💻 Dev Terminal</button>
+          <button class="chip" data-prompt="Create an urgent breaking news thumbnail about a massive seismic disruption in AI models. Shattered monolith dividing old AI from next-gen AI with volumetric neon faultlines. Headline 'IT CHANGED'.">⚡ AI Disruption</button>
+          <button class="chip" data-prompt="Create a high-energy productivity thumbnail about a 10x automated AI workflow pipeline. Flowing node connectors with multiplier badges and lightning triggers. Headline '10X WORKFLOW'.">⚙️ 10x Automation</button>
+          <button class="chip" data-prompt="Create a deep tech thumbnail about quantum computing breakthrough. Glowing atomic orbitals with particle accelerator light trails. Headline 'QUANTUM LEAP'.">⚛️ Quantum Tech</button>
+          <button class="chip" data-prompt="Create a futuristic cyber shield security thumbnail with cracked forcefield and red zero-day hazard alerts. Headline 'SYSTEM BREACHED'.">🛡️ Cyber Shield</button>
+          <button class="chip" data-prompt="Create an editorial aesthetic thumbnail showing an optical crystal prism dispersing spectral light waves with luxury chrome typography. Headline 'FUTURE AESTHETIC'.">💎 Creative Prism</button>
+        </div>
+      </section>
+
+      <!-- Quick Add Layer Tools -->
+      <section class="sidebar-card">
+        <span class="card-title">Add Elements</span>
+        <div class="quick-tools-grid">
+          <button class="tool-tile" id="btn-add-headline">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg>
+            + Headline
+          </button>
+          <button class="tool-tile" id="btn-add-subtitle">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h16M4 18h12"/></svg>
+            + Subtitle
+          </button>
+          <button class="tool-tile" id="btn-add-badge">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            + Alert Badge
+          </button>
+          <button class="tool-tile" id="btn-upload-asset">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            + Upload Logo
+          </button>
+        </div>
+        <input type="file" id="file-asset-upload" accept="image/png,image/jpeg,image/webp,image/svg+xml" style="display: none;">
+      </section>
+    </aside>
+
+    <!-- Center Canvas Stage -->
+    <section class="studio-center-stage">
+      <!-- Floating Viewport Toolbar -->
+      <div class="canvas-viewport-toolbar">
+        <button class="btn-icon" id="btn-zoom-out" title="Zoom Out">-</button>
+        <span class="zoom-label" id="zoom-value">100%</span>
+        <button class="btn-icon" id="btn-zoom-in" title="Zoom In">+</button>
+        <button class="btn-icon" id="btn-zoom-fit" title="Fit to Screen">Fit</button>
+        <div style="width: 1px; height: 16px; background: var(--border-subtle); margin: 0 4px;"></div>
+        <button class="btn-icon" id="btn-toggle-safe-guides" title="Toggle YouTube Safe Areas Overlay">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+
+      <!-- Canvas Rendering Wrapper -->
+      <div class="canvas-stage-wrapper" id="canvas-stage-wrapper">
+        <div id="canvas-container">
+          <!-- Dynamic SVG Canvas rendered here -->
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Sidebar: Context-Sensitive Inspector & Layers List -->
+    <aside class="studio-sidebar-right">
+      <div class="sidebar-tabs">
+        <button class="tab-btn active" data-tab="inspector" id="tab-btn-inspector">Properties</button>
+        <button class="tab-btn" data-tab="layers" id="tab-btn-layers">Layers</button>
+      </div>
+
+      <!-- Tab 1: Inspector -->
+      <div class="tab-content" id="tab-content-inspector">
+        <div id="inspector-content">
+          <!-- Populated dynamically by LayerEditor -->
+        </div>
+      </div>
+
+      <!-- Tab 2: Layers List -->
+      <div class="tab-content" id="tab-content-layers" style="display: none;">
+        <div class="layers-list" id="layers-list-items">
+          <!-- Populated dynamically by LayerEditor -->
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <!-- Modals -->
+
+  <!-- Projects Modal -->
+  <div class="modal-backdrop" id="modal-projects">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>Saved Projects</h3>
+        <button class="btn-icon" id="btn-close-projects-modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="projects-grid" id="modal-projects-grid">
+          <!-- Projects rendered here -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="btn-import-project-json">Import JSON</button>
+        <button class="btn btn-primary" id="btn-new-project">+ New Project</button>
+        <input type="file" id="file-import-json" accept=".json" style="display: none;">
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings / AI Provider Modal -->
+  <div class="modal-backdrop" id="modal-settings">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>Generation Settings & AI Provider</h3>
+        <button class="btn-icon" id="btn-close-settings-modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <label class="control-label">Generation Mode</label>
+        <select id="setting-provider-mode" class="studio-select">
+          <option value="local">Mode A: Local Engine (Default — Free, Offline, No API Key Required)</option>
+          <option value="pages-api">Mode B: Cloudflare Pages Serverless Function (/api/design)</option>
+          <option value="groq">Mode B: Direct Groq API (Llama 3.3 70B via client key)</option>
+          <option value="gemini">Mode B: Direct Google Gemini API (Gemini 2.0 Flash via client key)</option>
+        </select>
+
+        <div id="settings-groq-group" style="display: none; margin-top: 14px;">
+          <label class="control-label">Groq API Key</label>
+          <input type="password" id="setting-groq-key" class="studio-input" placeholder="gsk_...">
+          <p style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">Stored strictly in your local browser storage. Never sent to any external tracking or server.</p>
+        </div>
+
+        <div id="settings-gemini-group" style="display: none; margin-top: 14px;">
+          <label class="control-label">Gemini API Key</label>
+          <input type="password" id="setting-gemini-key" class="studio-input" placeholder="AIzaSy...">
+          <p style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">Stored strictly in your local browser storage.</p>
+        </div>
+
+        <div style="margin-top: 18px; padding: 12px; background: var(--bg-panel); border-radius: 8px; border: 1px solid var(--border-subtle);">
+          <p style="font-size: 12px; color: var(--text-muted); line-height: 1.5;">
+            <strong>Zero Cost Guarantee:</strong> The built-in Local Engine (Mode A) interprets prompts and renders full procedural SVG scenes with zero credits, no accounts, and zero API limits. Optional LLM modes return JSON design parameters and fall back to local generation automatically.
+          </p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" id="btn-save-settings">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Export Modal -->
+  <div class="modal-backdrop" id="modal-export">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>Export Thumbnail</h3>
+        <button class="btn-icon" id="btn-close-export-modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <label class="control-label">Export Format</label>
+        <select id="export-format-select" class="studio-select">
+          <option value="png">PNG Image (Crisp, High Quality)</option>
+          <option value="jpeg">JPEG Image (Optimized Size)</option>
+          <option value="svg">SVG Vector (Editable & Scalable)</option>
+          <option value="json">Project JSON (Full Backup / Interchange)</option>
+        </select>
+
+        <div class="slider-control" id="export-scale-group">
+          <div class="slider-header">
+            <label>Resolution Scale</label>
+            <span id="export-scale-label">1x Standard (1280×720)</span>
+          </div>
+          <select id="export-scale-select" class="studio-select">
+            <option value="1">1x Standard Resolution</option>
+            <option value="2">2x Ultra HD / Retina (Double Pixel Density)</option>
+          </select>
+        </div>
+
+        <div style="margin-top: 14px;" id="export-transparent-group">
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
+            <input type="checkbox" id="export-transparent-bg">
+            Export with Transparent Background
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="btn-close-export-btn">Cancel</button>
+        <button class="btn btn-primary" id="btn-do-export">Download File</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container"></div>
+
+  <!-- Application Scripts -->
+  <script src="js/scene-library.js"></script>
+  <script src="js/prompt-interpreter.js"></script>
+  <script src="js/scene-engine.js"></script>
+  <script src="js/layer-editor.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/export.js"></script>
+  <script src="js/llm-provider.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
