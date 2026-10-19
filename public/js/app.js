@@ -104,11 +104,21 @@
     }
     updateLockDialogText();
 
+    let failedAttempts = parseInt(localStorage.getItem('studio_pin_fails') || '0', 10);
+    let lockoutUntil = parseInt(localStorage.getItem('studio_pin_lockout') || '0', 10);
+
     lockForm.addEventListener('submit', async (e) => {
       e.preventDefault();
+
+      if (Date.now() < lockoutUntil) {
+        const remainingSec = Math.ceil((lockoutUntil - Date.now()) / 1000);
+        showLockError(`Too many failed attempts. Locked for ${remainingSec}s.`);
+        return;
+      }
+
       const val = pinInput.value.trim();
       if (!val || val.length < 4) {
-        showLockError('PIN must be at least 4 characters');
+        showLockError('PIN/Password must be at least 4 characters');
         return;
       }
 
@@ -122,17 +132,33 @@
         lockOverlay.classList.add('unlocked');
         pinInput.value = '';
         lockError.textContent = '';
-        showToast('Private PIN configured. Studio unlocked!', 'success');
+        failedAttempts = 0;
+        localStorage.removeItem('studio_pin_fails');
+        localStorage.removeItem('studio_pin_lockout');
+        showToast('Private password configured. Studio unlocked!', 'success');
       } else if (inputHash === storedHash) {
         // Correct PIN
         sessionStorage.setItem('studio_unlocked', 'true');
         lockOverlay.classList.add('unlocked');
         pinInput.value = '';
         lockError.textContent = '';
+        failedAttempts = 0;
+        localStorage.removeItem('studio_pin_fails');
+        localStorage.removeItem('studio_pin_lockout');
         showToast('Studio unlocked', 'success');
       } else {
         // Wrong PIN
-        showLockError('Incorrect PIN. Please try again.');
+        failedAttempts++;
+        localStorage.setItem('studio_pin_fails', failedAttempts.toString());
+
+        if (failedAttempts >= 5) {
+          lockoutUntil = Date.now() + 5 * 60 * 1000; // 5 min lockout
+          localStorage.setItem('studio_pin_lockout', lockoutUntil.toString());
+          showLockError('5 failed attempts. Studio locked for 5 minutes.');
+        } else {
+          showLockError(`Incorrect PIN. ${5 - failedAttempts} attempts remaining.`);
+        }
+
         pinInput.value = '';
         pinInput.focus();
       }
