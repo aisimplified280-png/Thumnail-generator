@@ -125,7 +125,13 @@
         letterSpacing: l.letterSpacing,
         metaphor: l.metaphor,
         dataUrl: l.dataUrl,
-        opacity: l.opacity
+        opacity: l.opacity,
+        textStyle: l.textStyle,
+        slant: l.slant,
+        backplateColor: l.backplateColor,
+        strokeWidth: l.strokeWidth,
+        badgeType: l.badgeType,
+        badgeStyle: l.badgeStyle
       })),
       theme: { ...engine.theme },
       format: engine.currentFormat
@@ -413,6 +419,62 @@
       pushHistoryState();
       showToast('Badge layer added');
     });
+
+    // Quick Add 3D Attention Arrow
+    const btnAddArrow = document.getElementById('btn-add-arrow');
+    if (btnAddArrow) {
+      btnAddArrow.addEventListener('click', () => {
+        const id = 'layer_arrow_' + Date.now();
+        engine.addLayer({
+          id,
+          name: '3D Attention Arrow',
+          type: 'graphic',
+          visible: true,
+          locked: false,
+          x: Math.round(engine.width * 0.48),
+          y: Math.round(engine.height * 0.38),
+          scale: 1.1,
+          rotation: -25,
+          metaphor: 'arrow',
+          render: (l) => engine.renderFocalMetaphor(l)
+        });
+        engine.selectedLayerId = id;
+        updateCanvas();
+        editor.renderLayersList();
+        editor.renderInspector();
+        pushHistoryState();
+        showToast('3D Attention Arrow added', 'success');
+      });
+    }
+
+    // Quick Add Caution Tape Ribbon
+    const btnAddSticker = document.getElementById('btn-add-sticker');
+    if (btnAddSticker) {
+      btnAddSticker.addEventListener('click', () => {
+        const id = 'layer_sticker_' + Date.now();
+        engine.addLayer({
+          id,
+          name: 'Caution Tape Ribbon',
+          type: 'graphic',
+          visible: true,
+          locked: false,
+          x: Math.round(engine.width * 0.5),
+          y: Math.round(engine.height * 0.75),
+          scale: 1.0,
+          rotation: -4,
+          metaphor: 'sticker-badge',
+          text: '100% EXPOSED',
+          badgeType: 'hazard',
+          render: (l) => engine.renderFocalMetaphor(l)
+        });
+        engine.selectedLayerId = id;
+        updateCanvas();
+        editor.renderLayersList();
+        editor.renderInspector();
+        pushHistoryState();
+        showToast('Caution Tape Ribbon added', 'success');
+      });
+    }
 
     // Upload Logo / Image Asset
     const fileUpload = document.getElementById('file-asset-upload');

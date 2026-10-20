@@ -7,6 +7,15 @@ window.PromptInterpreter = (function() {
 
   // Curated color themes for high CTR and visual punch
   const COLOR_PALETTES = {
+    viralMrBeast: {
+      name: 'Viral High-CTR',
+      bgDark: '#08080d',
+      bgMid: '#161622',
+      accent1: '#ffe600', // Electric High-CTR Yellow
+      accent2: '#ff0044', // Hot Crimson Red
+      textLight: '#ffffff',
+      textAccent: '#ffe600'
+    },
     cyberpunk: {
       name: 'Cyberpunk Breach',
       bgDark: '#060a14',
@@ -208,6 +217,14 @@ window.PromptInterpreter = (function() {
   function detectFocalMetaphor(prompt, categoryId) {
     const p = prompt.toLowerCase();
 
+    // Explicit graphic accents take top precedence
+    if (p.includes('arrow') || p.includes('pointing') || p.includes('look here')) {
+      return 'arrow';
+    }
+    if (p.includes('sticker') || p.includes('hazard') || p.includes('caution') || p.includes('exposed') || p.includes('banned')) {
+      return 'sticker-badge';
+    }
+
     if (p.includes('hugging face') || p.includes('huggingface') || p.includes('hf')) {
       return 'hf-breach';
     }
@@ -289,11 +306,13 @@ window.PromptInterpreter = (function() {
     const compIndex = Math.abs(remixSeed) % compositions.length;
     const composition = compositions[compIndex];
 
-    // 6. Effects specification
+    // 6. Effects specification with cinematic lighting
     const effects = {
       gridFloor: lower.includes('grid') || true,
       laserBeams: lower.includes('beam') || lower.includes('light') || true,
-      particleDensity: 40 + (remixSeed % 20),
+      spotlights: true,
+      sunburst: true,
+      particleDensity: 45 + (remixSeed % 20),
       vignette: true,
       glowIntensity: 1.0
     };
@@ -314,6 +333,9 @@ window.PromptInterpreter = (function() {
       composition,
       headline,
       headlineHighlight: highlightWord,
+      textStyle: 'sticker',
+      slant: -3,
+      backplateColor: palette.accent2 || '#e11d48',
       subtitle,
       badge,
       palette,

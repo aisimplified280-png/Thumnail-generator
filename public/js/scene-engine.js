@@ -56,23 +56,34 @@ window.SceneEngine = (function() {
       if (layer.type === 'background') {
         if (layer.id === 'bg-grid') {
           layer.render = () => SceneLibrary.createGridFloor(this.width, this.height, this.theme);
+        } else if (layer.id === 'bg-spotlights') {
+          layer.render = () => SceneLibrary.createSpotlights(this.width, this.height, this.theme);
         } else {
           layer.render = () => `
             <rect x="0" y="0" width="${this.width}" height="${this.height}" fill="url(#grad-bg-ambient)" />
-            <rect x="0" y="0" width="${this.width}" height="${this.height}" fill="url(#pat-cyber-dots)" opacity="0.15" />
+            <rect x="0" y="0" width="${this.width}" height="${this.height}" fill="url(#pat-cyber-dots)" opacity="0.18" />
           `;
         }
       } else if (layer.type === 'ambient') {
         if (layer.id === 'bg-lasers') {
           layer.render = () => SceneLibrary.createLaserBeams(this.width, this.height, this.theme);
         } else if (layer.id === 'bg-particles') {
-          layer.render = () => SceneLibrary.createParticleField(this.width, this.height, this.theme, this.spec?.effects?.particleDensity || 45, this.spec?.seed || 1);
+          layer.render = () => SceneLibrary.createParticleField(this.width, this.height, this.theme, this.spec?.effects?.particleDensity || 50, this.spec?.seed || 1);
+        } else if (layer.id === 'bg-speedlines') {
+          layer.render = () => SceneLibrary.createSpeedLines(this.width, this.height, this.theme);
+        } else if (layer.id === 'bg-sunburst') {
+          const fx = layer.x || Math.round(this.width * 0.72);
+          const fy = layer.y || Math.round(this.height * 0.5);
+          layer.render = () => SceneLibrary.createSunburst(fx, fy, Math.round(this.width * 0.35), this.theme);
         }
       } else if (layer.type === 'graphic') {
         layer.render = (l) => this.renderFocalMetaphor(l);
       } else if (layer.type === 'badge') {
         layer.render = (l) => {
           const safeText = escapeXml((l.text || '').toUpperCase());
+          if (l.badgeStyle === 'hazard') {
+            return SceneLibrary.createStickerBadge(l.x || 0, l.y || 0, l.scale || 1.0, this.theme, safeText, 'hazard');
+          }
           return `
             <g transform="translate(${l.x || 0}, ${l.y || 0})">
               <rect x="0" y="0" width="220" height="42" rx="8" fill="#0d0e17" stroke="${this.theme.accent2}" stroke-width="2.5" filter="url(#filter-glow-primary)" />
@@ -146,7 +157,18 @@ window.SceneEngine = (function() {
         }));
       }
 
-      // 3. Volumetric Lasers
+      // 3. Volumetric Atmospheric Spotlights
+      if (spec.effects?.spotlights !== false) {
+        this.addLayer(this.attachRenderer({
+          id: 'bg-spotlights',
+          name: 'Volumetric Spotlights',
+          type: 'background',
+          visible: true,
+          locked: false
+        }));
+      }
+
+      // 4. Volumetric Lasers
       if (spec.effects?.laserBeams !== false) {
         this.addLayer(this.attachRenderer({
           id: 'bg-lasers',
@@ -157,7 +179,21 @@ window.SceneEngine = (function() {
         }));
       }
 
-      // 4. Ambient Particle Dust
+      // 5. Sunburst Energy Shockwave Bloom
+      const focalPositions = this.calculateFocalPosition(spec.composition);
+      if (spec.effects?.sunburst !== false) {
+        this.addLayer(this.attachRenderer({
+          id: 'bg-sunburst',
+          name: 'Sunburst Shockwave',
+          type: 'ambient',
+          visible: true,
+          locked: false,
+          x: focalPositions.x,
+          y: focalPositions.y
+        }));
+      }
+
+      // 6. Ambient Particle Dust
       this.addLayer(this.attachRenderer({
         id: 'bg-particles',
         name: 'Particle Matrix',
@@ -166,8 +202,7 @@ window.SceneEngine = (function() {
         locked: false
       }));
 
-      // 5. Focal Graphic Illustration Layer
-      const focalPositions = this.calculateFocalPosition(spec.composition);
+      // 7. Focal Graphic Illustration Layer
       this.addLayer(this.attachRenderer({
         id: 'focal-graphic',
         name: `Focal: ${spec.focalMetaphor || 'Central Tech'}`,
@@ -181,7 +216,7 @@ window.SceneEngine = (function() {
         metaphor: spec.focalMetaphor
       }));
 
-      // 6. Top Alert Badge / Kicker
+      // 8. Top Alert Badge / Kicker
       const badgePos = this.calculateBadgePosition(spec.composition);
       this.addLayer(this.attachRenderer({
         id: 'layer-badge',
@@ -194,7 +229,7 @@ window.SceneEngine = (function() {
         text: spec.badge || 'CRITICAL UPDATE'
       }));
 
-      // 7. Headline Text Layer
+      // 9. Headline Text Layer with Viral High-CTR Default Styling
       const headlinePos = this.calculateHeadlinePosition(spec.composition);
       this.addLayer(this.attachRenderer({
         id: 'layer-headline',
@@ -210,9 +245,12 @@ window.SceneEngine = (function() {
         fontSize: headlinePos.fontSize,
         fontWeight: '900',
         color: '#ffffff',
-        highlightColor: this.theme.accent2 || '#ff2a5f',
+        highlightColor: '#ffe600',
+        textStyle: spec.textStyle || 'sticker',
+        slant: spec.slant != null ? spec.slant : -3,
+        backplateColor: spec.backplateColor || this.theme.accent2 || '#e11d48',
         strokeColor: '#000000',
-        strokeWidth: 4,
+        strokeWidth: 14,
         letterSpacing: 2
       }));
 
@@ -442,6 +480,12 @@ window.SceneEngine = (function() {
 
       let innerSvg = '';
       switch (layer.metaphor) {
+        case 'arrow':
+          innerSvg = SceneLibrary.createAttentionArrow(0, 0, scale, this.theme, rot || -25);
+          break;
+        case 'sticker-badge':
+          innerSvg = SceneLibrary.createStickerBadge(0, 0, scale, this.theme, layer.text || '100% EXPOSED', layer.badgeType || 'hazard');
+          break;
         case 'hf-breach':
           innerSvg = SceneLibrary.createHuggingFaceBreach(0, 0, scale, this.theme, 42);
           break;
@@ -475,12 +519,18 @@ window.SceneEngine = (function() {
       return `<g id="group-${escapeXml(layer.id)}" ${transform}>${innerSvg}</g>`;
     }
 
-    // High impact YouTube headline renderer with strict XML escaping (Fixes Issue 4)
+    // High impact YouTube headline renderer with strict XML escaping & viral visual styles
     renderHeadlineText(layer) {
       const words = (layer.text || '').trim().split(/\s+/);
       const hlWord = (layer.highlightWord || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
       const fontSize = layer.fontSize || 88;
-      const lineHeight = fontSize * 1.06;
+      const lineHeight = fontSize * 1.08;
+      const textStyle = layer.textStyle || 'sticker';
+      const slant = layer.slant != null ? layer.slant : -3;
+      const fontFamily = escapeXml(layer.fontFamily || 'Anton');
+      const letterSpacing = layer.letterSpacing || 2;
+      const strokeWidth = layer.strokeWidth || 14;
+      const backplateColor = layer.backplateColor || this.theme.accent2 || '#e11d48';
 
       const lines = [];
       if (words.length <= 2) {
@@ -494,27 +544,74 @@ window.SceneEngine = (function() {
         lines.push(words.slice(mid).join(' '));
       }
 
+      // Generate front tspans
       const lineTspans = lines.map((lineText, lineIdx) => {
         const lineWords = lineText.split(/\s+/);
         const spans = lineWords.map(w => {
           const clean = w.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
           const isHighlight = hlWord && clean === hlWord;
-          const fillColor = isHighlight ? (layer.highlightColor || this.theme.accent2) : (layer.color || '#ffffff');
-          const filter = isHighlight ? 'filter="url(#filter-glow-primary)"' : '';
+          let fillColor = isHighlight ? (layer.highlightColor || '#ffe600') : (layer.color || '#ffffff');
+          let filter = isHighlight ? 'filter="url(#filter-glow-primary)"' : '';
+
+          if (textStyle === 'neon-glow') {
+            fillColor = isHighlight ? '#ffe600' : 'url(#grad-text-electric)';
+            filter = 'filter="url(#filter-glow-intense)"';
+          } else if (textStyle === 'chrome-gold') {
+            fillColor = isHighlight ? '#ffffff' : 'url(#grad-gold)';
+            filter = 'filter="url(#filter-bevel)"';
+          }
+
           return `<tspan fill="${fillColor}" ${filter}>${escapeXml(w)} </tspan>`;
         }).join('');
 
         return `<tspan x="0" dy="${lineIdx === 0 ? 0 : lineHeight}">${spans}</tspan>`;
       }).join('');
 
+      // Generate sticker backplate pill boxes behind each line if textStyle === 'sticker'
+      let stickerBackplates = '';
+      if (textStyle === 'sticker') {
+        const padX = fontSize * 0.22;
+        stickerBackplates = lines.map((lineText, lineIdx) => {
+          const approxCharWidth = fontSize * 0.56;
+          const rectWidth = Math.round(lineText.length * approxCharWidth + padX * 2);
+          const rectHeight = Math.round(fontSize * 1.14);
+          const rectY = Math.round(lineIdx * lineHeight - fontSize * 0.9);
+          return `
+            <g filter="url(#filter-sticker-shadow)">
+              <rect x="${-padX}" y="${rectY}" width="${rectWidth}" height="${rectHeight}" rx="10" 
+                    fill="${backplateColor}" stroke="#ffffff" stroke-width="3" />
+            </g>
+          `;
+        }).join('');
+      }
+
+      // Generate 3D Extrusion Shadow steps if textStyle === '3d-block'
+      let extrusion3d = '';
+      if (textStyle === '3d-block') {
+        extrusion3d = [1, 2, 3, 4, 5, 6].map(step => `
+          <text x="${step * 2}" y="${step * 2.5}" font-family="${fontFamily}" font-size="${fontSize}" font-weight="900" letter-spacing="${letterSpacing}" fill="#000000" stroke="#000000" stroke-width="6" stroke-linejoin="round">
+            ${lines.map((l, i) => `<tspan x="${step * 2}" dy="${i === 0 ? 0 : lineHeight}">${escapeXml(l)} </tspan>`).join('')}
+          </text>
+        `).join('');
+      }
+
+      const slantTransform = slant !== 0 ? `rotate(${slant})` : '';
+
       return `
-        <g transform="translate(${layer.x || 0}, ${layer.y || 0})" filter="url(#filter-text-shadow)">
-          <!-- Outer Dark Outline for High-CTR Legibility -->
-          <text x="0" y="0" font-family="${escapeXml(layer.fontFamily || 'Anton')}" font-size="${fontSize}" font-weight="${layer.fontWeight || 900}" letter-spacing="${layer.letterSpacing || 2}" stroke="#000000" stroke-width="12" stroke-linejoin="round" fill="none">
+        <g transform="translate(${layer.x || 0}, ${layer.y || 0}) ${slantTransform}" filter="url(#filter-text-shadow)">
+          <!-- Sticker Backplates (High-CTR Viral Tape Pills) -->
+          ${stickerBackplates}
+
+          <!-- 3D Extruded Block Shadows -->
+          ${extrusion3d}
+
+          <!-- Outer Heavy Black Contour Stroke for 100% Legibility -->
+          <text x="0" y="0" font-family="${fontFamily}" font-size="${fontSize}" font-weight="${layer.fontWeight || 900}" letter-spacing="${letterSpacing}" stroke="#000000" stroke-width="${strokeWidth}" stroke-linejoin="round" fill="none">
             ${lines.map((l, i) => `<tspan x="0" dy="${i === 0 ? 0 : lineHeight}">${escapeXml(l)} </tspan>`).join('')}
           </text>
-          <!-- Front Text with Highlights -->
-          <text x="0" y="0" font-family="${escapeXml(layer.fontFamily || 'Anton')}" font-size="${fontSize}" font-weight="${layer.fontWeight || 900}" letter-spacing="${layer.letterSpacing || 2}">
+
+          <!-- Crisp Front Text with Highlights / Gradients -->
+          <text x="0" y="0" font-family="${fontFamily}" font-size="${fontSize}" font-weight="${layer.fontWeight || 900}" letter-spacing="${letterSpacing}">
             ${lineTspans}
           </text>
         </g>

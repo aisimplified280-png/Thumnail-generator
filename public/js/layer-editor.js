@@ -240,15 +240,37 @@ window.LayerEditor = (function() {
             <label class="control-label">Text Content</label>
             <textarea id="prop-text-val" rows="2" class="studio-input">${esc(layer.text || '')}</textarea>
 
-            <label class="control-label">Font Family</label>
-            <select id="prop-font-family" class="studio-select">
-              <option value="'Anton', sans-serif" ${layer.fontFamily?.includes('Anton') ? 'selected' : ''}>Anton (Bold Condensed)</option>
-              <option value="'Montserrat', sans-serif" ${layer.fontFamily?.includes('Montserrat') ? 'selected' : ''}>Montserrat (Geometric Ultra)</option>
-              <option value="'Outfit', sans-serif" ${layer.fontFamily?.includes('Outfit') ? 'selected' : ''}>Outfit (Modern Tech)</option>
-              <option value="'Bebas Neue', sans-serif" ${layer.fontFamily?.includes('Bebas') ? 'selected' : ''}>Bebas Neue (Impact)</option>
-              <option value="'JetBrains Mono', monospace" ${layer.fontFamily?.includes('JetBrains') ? 'selected' : ''}>JetBrains Mono (Code)</option>
-              <option value="'Inter', sans-serif" ${layer.fontFamily?.includes('Inter') ? 'selected' : ''}>Inter (Clean Neo)</option>
-            </select>
+            <div class="input-row">
+              <div class="input-field">
+                <label>Text Style</label>
+                <select id="prop-text-style" class="studio-select">
+                  <option value="sticker" ${layer.textStyle === 'sticker' || !layer.textStyle ? 'selected' : ''}>Sticker Tape (Viral CTR)</option>
+                  <option value="3d-block" ${layer.textStyle === '3d-block' ? 'selected' : ''}>3D Extruded Block</option>
+                  <option value="neon-glow" ${layer.textStyle === 'neon-glow' ? 'selected' : ''}>Cyber Neon Electric</option>
+                  <option value="chrome-gold" ${layer.textStyle === 'chrome-gold' ? 'selected' : ''}>Metallic Gold / Chrome</option>
+                  <option value="clean" ${layer.textStyle === 'clean' ? 'selected' : ''}>Crisp Contour Only</option>
+                </select>
+              </div>
+              <div class="input-field">
+                <label>Font Family</label>
+                <select id="prop-font-family" class="studio-select">
+                  <option value="'Anton', sans-serif" ${layer.fontFamily?.includes('Anton') ? 'selected' : ''}>Anton (Bold Condensed)</option>
+                  <option value="'Montserrat', sans-serif" ${layer.fontFamily?.includes('Montserrat') ? 'selected' : ''}>Montserrat (Geometric Ultra)</option>
+                  <option value="'Outfit', sans-serif" ${layer.fontFamily?.includes('Outfit') ? 'selected' : ''}>Outfit (Modern Tech)</option>
+                  <option value="'Bebas Neue', sans-serif" ${layer.fontFamily?.includes('Bebas') ? 'selected' : ''}>Bebas Neue (Impact)</option>
+                  <option value="'JetBrains Mono', monospace" ${layer.fontFamily?.includes('JetBrains') ? 'selected' : ''}>JetBrains Mono (Code)</option>
+                  <option value="'Inter', sans-serif" ${layer.fontFamily?.includes('Inter') ? 'selected' : ''}>Inter (Clean Neo)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="slider-control">
+              <div class="slider-header">
+                <label>Dynamic Slant (Tilt)</label>
+                <span id="slant-val">${layer.slant != null ? layer.slant : -3}°</span>
+              </div>
+              <input type="range" id="prop-text-slant" min="-15" max="15" value="${layer.slant != null ? layer.slant : -3}">
+            </div>
 
             <div class="slider-control">
               <div class="slider-header">
@@ -260,23 +282,34 @@ window.LayerEditor = (function() {
 
             <div class="input-row">
               <div class="input-field">
-                <label>Primary Color</label>
+                <label>Primary Text Color</label>
                 <input type="color" id="prop-text-color" value="${esc(layer.color || '#ffffff')}">
               </div>
               <div class="input-field">
-                <label>Highlight Word</label>
-                <input type="text" id="prop-highlight-word" value="${esc(layer.highlightWord || '')}" placeholder="e.g. ESCAPED">
+                <label>Tape Backplate Color</label>
+                <input type="color" id="prop-backplate-color" value="${esc(layer.backplateColor || this.engine.theme.accent2 || '#e11d48')}">
               </div>
             </div>
 
             <div class="input-row">
               <div class="input-field">
-                <label>Highlight Color</label>
-                <input type="color" id="prop-highlight-color" value="${esc(layer.highlightColor || this.engine.theme.accent2)}">
+                <label>Highlight Word</label>
+                <input type="text" id="prop-highlight-word" value="${esc(layer.highlightWord || '')}" placeholder="e.g. ESCAPED">
               </div>
+              <div class="input-field">
+                <label>Highlight Color</label>
+                <input type="color" id="prop-highlight-color" value="${esc(layer.highlightColor || '#ffe600')}">
+              </div>
+            </div>
+
+            <div class="input-row">
               <div class="input-field">
                 <label>Letter Spacing</label>
                 <input type="number" id="prop-letter-spacing" value="${layer.letterSpacing || 2}">
+              </div>
+              <div class="input-field">
+                <label>Outer Stroke Width</label>
+                <input type="number" id="prop-stroke-width" value="${layer.strokeWidth || 14}">
               </div>
             </div>
           </div>
@@ -289,10 +322,12 @@ window.LayerEditor = (function() {
           <div class="inspector-section">
             <label class="control-label">Visual Metaphor</label>
             <select id="prop-focal-metaphor" class="studio-select">
+              <option value="arrow" ${layer.metaphor === 'arrow' ? 'selected' : ''}>Viral 3D Attention Arrow</option>
+              <option value="sticker-badge" ${layer.metaphor === 'sticker-badge' ? 'selected' : ''}>Caution / Reaction Sticker</option>
+              <option value="hf-breach" ${layer.metaphor === 'hf-breach' ? 'selected' : ''}>Hugging Face Cyber Breach</option>
               <option value="vault" ${layer.metaphor === 'vault' ? 'selected' : ''}>Cloud Data Vault (Security)</option>
               <option value="shield" ${layer.metaphor === 'shield' ? 'selected' : ''}>Breached Cyber Shield</option>
               <option value="neural-core" ${layer.metaphor === 'neural-core' ? 'selected' : ''}>Neural Core / AI Brain</option>
-              <option value="hf-breach" ${layer.metaphor === 'hf-breach' ? 'selected' : ''}>Hugging Face Robot Breach</option>
               <option value="terminal" ${layer.metaphor === 'terminal' ? 'selected' : ''}>Developer Terminal Window</option>
               <option value="workflow" ${layer.metaphor === 'workflow' ? 'selected' : ''}>Autonomous 10X Workflow</option>
               <option value="quantum" ${layer.metaphor === 'quantum' ? 'selected' : ''}>Quantum Atom Orbital</option>
@@ -407,6 +442,21 @@ window.LayerEditor = (function() {
         this.onUpdate({ type: 'prop-change' });
       });
 
+      const textStyle = document.getElementById('prop-text-style');
+      if (textStyle) textStyle.addEventListener('change', (e) => {
+        layer.textStyle = e.target.value;
+        this.updateCanvasDirectly();
+        this.onUpdate({ type: 'prop-change' });
+      });
+
+      const textSlant = document.getElementById('prop-text-slant');
+      if (textSlant) textSlant.addEventListener('input', (e) => {
+        layer.slant = parseInt(e.target.value, 10);
+        const label = document.getElementById('slant-val');
+        if (label) label.textContent = `${layer.slant}°`;
+        this.updateCanvasDirectly();
+      });
+
       const fontFamily = document.getElementById('prop-font-family');
       if (fontFamily) fontFamily.addEventListener('change', (e) => {
         layer.fontFamily = e.target.value;
@@ -428,6 +478,12 @@ window.LayerEditor = (function() {
         this.updateCanvasDirectly();
       });
 
+      const backplateColor = document.getElementById('prop-backplate-color');
+      if (backplateColor) backplateColor.addEventListener('input', (e) => {
+        layer.backplateColor = e.target.value;
+        this.updateCanvasDirectly();
+      });
+
       const hlWord = document.getElementById('prop-highlight-word');
       if (hlWord) hlWord.addEventListener('input', (e) => {
         layer.highlightWord = e.target.value;
@@ -443,6 +499,12 @@ window.LayerEditor = (function() {
       const letterSpacing = document.getElementById('prop-letter-spacing');
       if (letterSpacing) letterSpacing.addEventListener('input', (e) => {
         layer.letterSpacing = parseFloat(e.target.value) || 0;
+        this.updateCanvasDirectly();
+      });
+
+      const strokeWidth = document.getElementById('prop-stroke-width');
+      if (strokeWidth) strokeWidth.addEventListener('input', (e) => {
+        layer.strokeWidth = parseFloat(e.target.value) || 0;
         this.updateCanvasDirectly();
       });
 

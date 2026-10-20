@@ -400,6 +400,78 @@ setTimeout(() => {
   assert(sandbox.localStorage.getItem('as_thumb_idb_migrated') !== 'true', 'Failed legacy DB open does NOT falsely mark as_thumb_idb_migrated as true');
 }, 50);
 
+// ----------------------------------------------------
+// TEST SUITE 8: High-CTR Visual Upgrades, Shaders & Creator Accents
+// ----------------------------------------------------
+setTimeout(() => {
+  console.log('\nSuite 8: High-CTR Visual Upgrades & Viral Typography');
+
+  const SceneLib = sandbox.window.SceneLibrary;
+  const SceneEng = sandbox.window.SceneEngine;
+  const PromptInterp = sandbox.window.PromptInterpreter;
+
+  // 1. 3D Attention Arrow
+  const arrowSvg = SceneLib.createAttentionArrow(100, 100, 1.0, { accent1: '#ffe600' }, -25);
+  assert(arrowSvg.includes('class="focal-group attention-arrow"'), 'Attention Arrow generates valid SVG group');
+  assert(arrowSvg.includes('grad-gold') || arrowSvg.includes('#ffe600'), 'Attention Arrow uses gold/neon gradient');
+
+  // 2. Sticker Caution Ribbon
+  const stickerSvg = SceneLib.createStickerBadge(200, 200, 1.0, {}, '100% EXPOSED', 'hazard');
+  assert(stickerSvg.includes('class="focal-group sticker-badge"'), 'Sticker Badge generates valid SVG group');
+  assert(stickerSvg.includes('100% EXPOSED'), 'Sticker Badge contains formatted headline text');
+
+  // 3. Volumetric Spotlights & Sunburst
+  const spotlightsSvg = SceneLib.createSpotlights(1280, 720, {});
+  assert(spotlightsSvg.includes('class="bg-spotlights"'), 'Spotlights generates volumetric god ray group');
+
+  const sunburstSvg = SceneLib.createSunburst(640, 360, 400, { accent1: '#00f2fe' });
+  assert(sunburstSvg.includes('class="bg-sunburst"'), 'Sunburst generates radial shockwave bloom');
+
+  // 4. Kinetic Speed Lines
+  const speedLinesSvg = SceneLib.createSpeedLines(1280, 720, {});
+  assert(speedLinesSvg.includes('class="bg-speedlines"'), 'Speedlines generates kinetic particle streak group');
+
+  // 5. High-CTR Sticker Backplate Typography Rendering
+  const engine = new SceneEng.Engine();
+  const testLayerSticker = {
+    id: 'test-headline',
+    type: 'text',
+    text: 'VIRAL THUMBNAIL',
+    highlightWord: 'VIRAL',
+    textStyle: 'sticker',
+    slant: -3,
+    fontSize: 90,
+    backplateColor: '#e11d48'
+  };
+  const headlineStickerSvg = engine.renderHeadlineText(testLayerSticker);
+  assert(headlineStickerSvg.includes('filter-sticker-shadow'), 'Sticker text renders drop shadow backplates');
+  assert(headlineStickerSvg.includes('rotate(-3)'), 'Sticker text renders with dynamic slant angle');
+  assert(headlineStickerSvg.includes('VIRAL'), 'Sticker text preserves target headline words');
+
+  // 6. 3D Extruded Block Typography Rendering
+  const testLayer3D = {
+    id: 'test-headline-3d',
+    type: 'text',
+    text: 'EXTRUDED 3D',
+    textStyle: '3d-block',
+    slant: 0,
+    fontSize: 84
+  };
+  const headline3DSvg = engine.renderHeadlineText(testLayer3D);
+  assert(headline3DSvg.includes('stroke-linejoin="round"'), '3D Extrusion text renders stepped offset shadows');
+
+  // 7. Viral Color Palette & Natural Language Detection
+  assert(Boolean(PromptInterp.COLOR_PALETTES.viralMrBeast), 'Viral MrBeast high-CTR palette is defined');
+  assertEqual(PromptInterp.COLOR_PALETTES.viralMrBeast.accent1, '#ffe600', 'MrBeast palette accent1 is electric yellow');
+
+  const arrowSpec = PromptInterp.interpret('Make a dramatic thumbnail with a glowing neon arrow pointing to the AI core');
+  assertEqual(arrowSpec.focalMetaphor, 'arrow', 'Prompt interpreter detects arrow keyword as focal metaphor');
+
+  const stickerSpec = PromptInterp.interpret('Warning urgent caution sticker saying 100% EXPOSED');
+  assertEqual(stickerSpec.focalMetaphor, 'sticker-badge', 'Prompt interpreter detects caution sticker keyword');
+  assertEqual(stickerSpec.textStyle, 'sticker', 'Default interpreted textStyle is sticker');
+}, 100);
+
 // Summary
 setTimeout(() => {
   console.log('\n========================================');
